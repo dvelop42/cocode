@@ -510,6 +510,12 @@ class SecretRedactor:
         # AWS credentials
         (r'AKIA[0-9A-Z]{16}', 'AKIA***'),
         (r'aws[_-]?secret[_-]?access[_-]?key["\s:=]+["\'`]?([A-Za-z0-9/+=]{40})', 'aws_secret_access_key=***'),
+        # Azure credentials
+        (r'[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}', 'azure-client-id-***'),
+        (r'azure[_-]?client[_-]?secret["\s:=]+["\'`]?([A-Za-z0-9_\-]{34,})', 'azure_client_secret=***'),
+        # Google Cloud service accounts
+        (r'"private_key":\s*"-----BEGIN [A-Z ]+PRIVATE KEY-----[^"]+-----END [A-Z ]+PRIVATE KEY-----\\n"', '"private_key": "-----BEGIN PRIVATE KEY-----***-----END PRIVATE KEY-----"'),
+        (r'[a-zA-Z0-9_-]{40,}@[a-zA-Z0-9-]+\.iam\.gserviceaccount\.com', '***@***.iam.gserviceaccount.com'),
     ]
     
     def redact(self, text: str) -> str:
