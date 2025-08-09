@@ -46,6 +46,7 @@ def get_auth_status() -> AuthStatus:
             check=False,
             capture_output=True,
             text=True,
+            timeout=5,
         )
     except FileNotFoundError:
         return AuthStatus(
@@ -84,5 +85,5 @@ def get_auth_status() -> AuthStatus:
     return AuthStatus(
         authenticated=False,
         raw_output=combined or None,
-        error=err.strip() or None,
+        error=(err or output).strip() or None,
     )

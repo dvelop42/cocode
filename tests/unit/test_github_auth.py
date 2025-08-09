@@ -56,3 +56,20 @@ def test_auth_status_gh_missing(monkeypatch):
 
     assert status.authenticated is False
     assert status.error is not None
+
+
+def test_auth_status_authenticated_but_unparsed(monkeypatch):
+    # Simulate a successful return without the expected "Logged in to ..." line
+    sample = "github.com\n" "  ✓ Token: *******************\n" "  ✓ Git operations configured.\n"
+
+    def fake_run(*args, **kwargs):  # type: ignore[no-redef]
+        return _make_proc(stdout=sample, stderr="", returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    status = get_auth_status()
+
+    assert status.authenticated is True
+    # Details are unknown in fallback; ensure fields are None
+    assert status.username is None
+    assert status.host is None
+    assert status.auth_method is None

@@ -35,14 +35,10 @@ def doctor_command() -> None:
     required_missing = [r.name for r in results if r.name in {"git", "gh"} and not r.installed]
 
     # Warn on Python < 3.10 but do not fail the command
+    import sys
+
     py = next((r for r in results if r.name == "python"), None)
-    py_warn = False
-    if py and py.version:
-        try:
-            parts = [int(p) for p in py.version.split(".")[:2]]
-            py_warn = parts < [3, 10]
-        except ValueError:
-            py_warn = False
+    py_warn = sys.version_info < (3, 10)
 
     console.print(_render_table(results))
 
