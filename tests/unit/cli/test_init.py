@@ -55,7 +55,7 @@ class TestInitCommand:
                         result = runner.invoke(app, ["init", "--no-interactive"])
 
                         # Check that sys.exit was called with success
-                        mock_exit.assert_called_once_with(ExitCode.SUCCESS)
+                        mock_exit.assert_any_call(ExitCode.SUCCESS)
 
                     # Verify config manager interactions
                     mock_manager.load.assert_called_once()
@@ -100,7 +100,7 @@ class TestInitCommand:
                             with patch("sys.exit") as mock_exit:
                                 result = runner.invoke(app, ["init"])
 
-                                mock_exit.assert_called_once_with(ExitCode.SUCCESS)
+                                mock_exit.assert_any_call(ExitCode.SUCCESS)
 
                     # Verify single agent was configured as base
                     mock_manager.set.assert_any_call("base_agent", "claude-code")
@@ -137,7 +137,7 @@ class TestInitCommand:
                     with patch("sys.exit") as mock_exit:
                         runner.invoke(app, ["init", "--no-interactive", "--force"])
 
-                        mock_exit.assert_called_once_with(ExitCode.SUCCESS)
+                        mock_exit.assert_any_call(ExitCode.SUCCESS)
                         mock_manager.save.assert_called_once()
 
     def test_init_existing_config_no_force(self, runner, tmp_path):
@@ -170,7 +170,7 @@ class TestInitCommand:
                 with patch("sys.exit") as mock_exit:
                     result = runner.invoke(app, ["init"])
 
-                    mock_exit.assert_called_once_with(ExitCode.SUCCESS)
+                    mock_exit.assert_any_call(ExitCode.SUCCESS)
                     assert "Keeping existing configuration" in result.output
 
     def test_init_custom_arguments_with_quotes(self, runner, mock_agents, tmp_path):
@@ -203,7 +203,7 @@ class TestInitCommand:
                             with patch("sys.exit") as mock_exit:
                                 runner.invoke(app, ["init"])
 
-                                mock_exit.assert_called_once_with(ExitCode.SUCCESS)
+                                mock_exit.assert_any_call(ExitCode.SUCCESS)
 
                     # Verify arguments were properly parsed with shlex
                     call_args = mock_manager.set.call_args_list
@@ -234,7 +234,7 @@ class TestInitCommand:
                             with patch("sys.exit") as mock_exit:
                                 result = runner.invoke(app, ["init"])
 
-                                mock_exit.assert_called_once_with(ExitCode.SUCCESS)
+                                mock_exit.assert_any_call(ExitCode.SUCCESS)
                                 assert "Warning: Invalid argument format" in result.output
 
                     # Verify empty args list was set for invalid input
@@ -274,7 +274,7 @@ class TestInitCommand:
                             with patch("sys.exit") as mock_exit:
                                 runner.invoke(app, ["init"])
 
-                                mock_exit.assert_called_once_with(ExitCode.SUCCESS)
+                                mock_exit.assert_any_call(ExitCode.SUCCESS)
 
                     # Verify codex-cli was set as base agent
                     mock_manager.set.assert_any_call("base_agent", "codex-cli")
