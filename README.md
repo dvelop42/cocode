@@ -164,7 +164,7 @@ Agents signal completion by including `"cocode ready for check"` in their final 
 
 ### Agent Authentication
 
-Agent CLIs (e.g., `claude`, `codex`) handle their own authentication and API keys. cocode does not read vendor keys; it only sets `COCODE_*` context variables and launches the agent processes.
+Agent CLIs (e.g., `claude`, `codex`) handle their own authentication and API keys independently. cocode does not read or manage vendor API keys; it only sets `COCODE_*` context variables and launches the agent processes.
 
 ## Project Conventions
 
