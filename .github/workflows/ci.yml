@@ -27,9 +27,9 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v4
 
-      - name: Install dependencies
+      - name: Install dependencies (system Python)
         run: |
-          uv pip install -e .[dev]
+          uv pip install --system -e .[dev]
 
       - name: Lint (ruff)
         run: ruff check .
@@ -50,4 +50,3 @@ jobs:
           name: htmlcov-${{ matrix.python-version }}
           path: htmlcov
           if-no-files-found: ignore
-
