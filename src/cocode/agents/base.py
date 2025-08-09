@@ -3,7 +3,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -14,9 +13,9 @@ class AgentStatus:
     branch: str
     worktree: Path
     ready: bool = False
-    last_commit: Optional[str] = None
-    exit_code: Optional[int] = None
-    error_message: Optional[str] = None
+    last_commit: str | None = None
+    exit_code: int | None = None
+    error_message: str | None = None
 
 
 class Agent(ABC):

@@ -1,14 +1,15 @@
 """Entry point for cocode CLI."""
 
 import sys
+
 import typer
 from rich.console import Console
 
 from cocode import __version__
+from cocode.cli.clean import clean_command
+from cocode.cli.doctor import doctor_command
 from cocode.cli.init import init_command
 from cocode.cli.run import run_command
-from cocode.cli.doctor import doctor_command
-from cocode.cli.clean import clean_command
 from cocode.utils.logging import setup_logging
 
 app = typer.Typer(

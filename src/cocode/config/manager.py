@@ -1,13 +1,13 @@
 """Configuration file management."""
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 class ConfigManager:
     """Manages cocode configuration."""
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Path | None = None):
         """Initialize config manager."""
         self.config_path = config_path or Path(".cocode/config.json")
 

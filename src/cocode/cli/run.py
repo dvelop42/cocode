@@ -1,7 +1,8 @@
 """Run cocode agents on a GitHub issue."""
 
-import typer
 from rich.console import Console
+import typer
+
 from cocode.utils.exit_codes import ExitCode
 
 console = Console()

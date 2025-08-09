@@ -2,7 +2,6 @@
 
 import re
 from pathlib import Path
-from typing import Optional
 
 
 def validate_issue_number(issue: int) -> bool:
@@ -61,7 +60,7 @@ def validate_agent_path(path: Path, worktree_root: Path) -> bool:
         return False
 
 
-def validate_repo_path(path: Optional[Path] = None) -> bool:
+def validate_repo_path(path: Path | None = None) -> bool:
     """Validate that path is a git repository.
 
     Args:
