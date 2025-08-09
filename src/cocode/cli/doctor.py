@@ -45,10 +45,13 @@ def doctor_command() -> None:
     # Show GitHub authentication status
     auth = get_auth_status()
     if auth.authenticated:
-        console.print(
-            f"[green]GitHub:[/green] Logged in to [bold]{auth.host}[/bold] as "
-            f"[bold]{auth.username}[/bold] ({auth.auth_method})"
-        )
+        if auth.host and auth.username and auth.auth_method:
+            console.print(
+                f"[green]GitHub:[/green] Logged in to [bold]{auth.host}[/bold] as "
+                f"[bold]{auth.username}[/bold] ({auth.auth_method})"
+            )
+        else:
+            console.print("[green]GitHub:[/green] Authenticated (details unavailable)")
     else:
         detail = f" ({auth.error})" if auth.error else ""
         console.print(f"[red]GitHub:[/red] Not authenticated{detail}")
