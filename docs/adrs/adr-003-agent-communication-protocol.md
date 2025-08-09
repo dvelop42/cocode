@@ -2,7 +2,7 @@
 
 **Status**: Proposed → **ACCEPTED** ✅
 
-**Date**: 2025-01-09
+**Date**: 2024-01-09
 
 **Decision**: **Environment Variables + Git Commits**
 
@@ -128,10 +128,34 @@ Agents output logs to stdout/stderr. Both structured and plain text are supporte
 
 ### Ready Detection
 
-The ready marker (`cocode ready for check`) must appear in the commit message:
+The ready marker (`cocode ready for check`) must appear in the commit message. The marker can appear anywhere in either the subject line or the body of the commit message. For multiline commit messages, the marker is typically placed in the body:
+
 ```bash
-# Check for ready state
+# Check for ready state (searches entire commit message including multiline body)
 git log -1 --format=%B | grep -q "cocode ready for check"
+```
+
+**Valid multiline examples:**
+```bash
+# Marker in commit body (recommended for multiline)
+git commit -m "fix: resolve authentication issue" \
+           -m "Implemented OAuth flow and fixed token refresh" \
+           -m "cocode ready for check"
+
+# Marker in subject with multiline body
+git commit -m "fix: issue #123 - cocode ready for check" \
+           -m "Additional implementation details here"
+
+# Using heredoc for complex messages
+git commit -m "$(cat <<EOF
+fix: resolve issue #123
+
+Detailed explanation of changes made.
+Multiple paragraphs of context.
+
+cocode ready for check
+EOF
+)"
 ```
 
 ### Exit Codes
@@ -151,6 +175,24 @@ git log -1 --format=%B | grep -q "cocode ready for check"
 ```bash
 #!/bin/bash
 set -e
+
+# Validate required environment variables
+if [[ -z "$COCODE_REPO_PATH" ]]; then
+    echo "Error: COCODE_REPO_PATH not set" >&2
+    exit 2
+fi
+if [[ -z "$COCODE_ISSUE_NUMBER" ]]; then
+    echo "Error: COCODE_ISSUE_NUMBER not set" >&2
+    exit 2
+fi
+if [[ -z "$COCODE_ISSUE_BODY_FILE" ]]; then
+    echo "Error: COCODE_ISSUE_BODY_FILE not set" >&2
+    exit 2
+fi
+if [[ -z "$COCODE_READY_MARKER" ]]; then
+    echo "Error: COCODE_READY_MARKER not set" >&2
+    exit 2
+fi
 
 # Read context
 issue_file="$COCODE_ISSUE_BODY_FILE"
@@ -193,11 +235,15 @@ def log(level, message):
     sys.stdout.flush()
 
 def main():
-    # Read environment
-    repo_path = os.environ["COCODE_REPO_PATH"]
-    issue_number = os.environ["COCODE_ISSUE_NUMBER"]
-    issue_body_file = os.environ["COCODE_ISSUE_BODY_FILE"]
-    ready_marker = os.environ["COCODE_READY_MARKER"]
+    # Validate and read environment variables
+    try:
+        repo_path = os.environ["COCODE_REPO_PATH"]
+        issue_number = os.environ["COCODE_ISSUE_NUMBER"]
+        issue_body_file = os.environ["COCODE_ISSUE_BODY_FILE"]
+        ready_marker = os.environ["COCODE_READY_MARKER"]
+    except KeyError as e:
+        print(f"Error: Required environment variable {e} not set", file=sys.stderr)
+        return 2
     
     log("info", f"Starting issue #{issue_number}")
     
