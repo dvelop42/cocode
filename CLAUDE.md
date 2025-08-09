@@ -31,6 +31,14 @@
 - **Resources**: 15-minute default timeout with process group cleanup
 - **Future**: Container-based sandboxing, network filtering, fine-grained permissions
 
+### ADR-005: Performance & Scalability Targets ✅
+- **Concurrent Agents**: Max 5 agents (MVP), configurable via profiles (low/medium/high)
+- **Log Handling**: 10MB buffer with auto-rotation, compression for verbose agents (>1MB/min), 2000-line TUI retention
+- **Repository Limits**: 500MB working tree recommended, clear size calculation (excludes .git, respects .gitignore)
+- **Timeouts**: Adaptive 15-45min based on complexity, smart polling intervals (2s→5s→10s)
+- **Memory Management**: 2GB per agent soft limit, graceful handling of limit violations
+- **Edge Cases**: Defined strategies for memory/timeout exceeded, log overflow, size violations
+
 ## Key Architectural Decisions
 
 ### Technology Stack
