@@ -1,6 +1,6 @@
 # Makefile for cocode development
 
-.PHONY: help install test lint format type-check ci clean dev fix
+.PHONY: help install test lint format type-check ci clean dev fix pre-commit
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -39,6 +39,9 @@ fix: ## Auto-fix linting and formatting issues
 	uv run ruff check --fix .
 	uv run black .
 
+pre-commit: ## Run pre-commit hooks on all files
+	pre-commit run --all-files
+
 clean: ## Clean up generated files and caches
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
@@ -51,7 +54,10 @@ clean: ## Clean up generated files and caches
 	find . -type f -name ".coverage" -delete
 
 dev: install ## Set up development environment
+	pre-commit install
+	pre-commit install --hook-type pre-push
 	@echo "✅ Development environment ready!"
+	@echo "✅ Pre-commit hooks installed!"
 	@echo ""
 	@echo "Run 'make test' to run tests"
 	@echo "Run 'make ci' to run all CI checks"

@@ -129,11 +129,13 @@ cocode clean --hard # Remove unmerged worktrees (with confirmation)
 # Clone and install
 git clone https://github.com/dvelop42/cocode.git
 cd cocode
-make dev  # Sets up virtual environment and installs dependencies
-
-# Enable pre-push hooks (optional but recommended)
-git config core.hooksPath .githooks
+make dev  # Sets up virtual environment, installs dependencies, and configures pre-commit hooks
 ```
+
+Pre-commit hooks are automatically installed and will:
+- Run linting (ruff) and formatting (black) on commit
+- Run full test suite with coverage on push
+- Check for secrets and common issues
 
 ### Development Commands
 
@@ -149,6 +151,10 @@ make test        # Run tests with coverage
 
 # Auto-fix issues
 make fix         # Fix linting and formatting issues
+
+# Pre-commit hooks
+make pre-commit  # Run all pre-commit hooks manually
+pre-commit run --all-files  # Same as above
 
 # Clean up
 make clean       # Remove caches and generated files
@@ -168,12 +174,32 @@ This runs the same checks as GitHub Actions CI:
 - Mypy type checking
 - Pytest with coverage (45% minimum)
 
-### Git Hooks
+### Pre-commit Hooks
 
-To automatically run CI checks before each push:
+Pre-commit hooks are automatically installed when you run `make dev`. They will:
 
+**On every commit:**
+- Fix and check linting with ruff
+- Format code with black
+- Check for trailing whitespace
+- Fix end-of-file issues
+- Check for merge conflicts
+- Scan for secrets
+
+**On push:**
+- Run full test suite
+- Check test coverage (45% minimum)
+
+To run hooks manually:
 ```bash
-git config core.hooksPath .githooks
+make pre-commit  # or
+pre-commit run --all-files
+```
+
+To skip hooks temporarily (not recommended):
+```bash
+git commit --no-verify
+git push --no-verify
 ```
 
 ## Configuration
