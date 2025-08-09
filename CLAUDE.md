@@ -52,6 +52,179 @@
 5. **No Background Services**: Single process, ephemeral runs
 6. **Security Through Simplicity**: User trust model with clear warnings (ADR-004)
 
+## Keep It Simple (KISS) Guide
+
+### Philosophy
+"Make it work, make it right, make it fast" - in that order. Start with the simplest solution that could possibly work.
+
+### Simplicity Rules
+
+#### 1. No Premature Abstraction
+```python
+# ❌ BAD: Over-engineered for current needs
+class AbstractAgentFactory(ABC):
+    def create_agent(self) -> Agent:
+        return self._instantiate_from_registry(
+            self._resolve_dependencies()
+        )
+
+# ✅ GOOD: Simple and direct
+def create_agent(agent_type: str) -> Agent:
+    if agent_type == "claude-code":
+        return ClaudeCodeAgent()
+    elif agent_type == "codex":
+        return CodexAgent()
+    else:
+        raise ValueError(f"Unknown agent: {agent_type}")
+```
+
+#### 2. Use Standard Library First
+```python
+# ❌ BAD: External dependency for simple task
+import requests  # Don't add dependency
+response = requests.get(url)
+
+# ✅ GOOD: Standard library
+import urllib.request
+with urllib.request.urlopen(url) as response:
+    data = response.read()
+
+# Exception: Use subprocess for git, not GitPython
+# ✅ GOOD: Direct and debuggable
+subprocess.run(["git", "add", "."], check=True)
+```
+
+#### 3. Explicit Over Implicit
+```python
+# ❌ BAD: Magic behavior
+class Agent:
+    def __getattr__(self, name):
+        # Complex dynamic attribute resolution
+        return self._registry.get(name)
+
+# ✅ GOOD: Clear and obvious
+class Agent:
+    @property
+    def status(self) -> str:
+        return self._status
+```
+
+#### 4. Flat Over Nested
+```python
+# ❌ BAD: Deep nesting
+if condition1:
+    if condition2:
+        if condition3:
+            do_something()
+
+# ✅ GOOD: Early returns
+if not condition1:
+    return
+if not condition2:
+    return
+if not condition3:
+    return
+do_something()
+```
+
+#### 5. Single Responsibility
+```python
+# ❌ BAD: Does too much
+def process_agent_and_create_pr_and_notify(agent, issue):
+    # 200 lines of mixed concerns
+    pass
+
+# ✅ GOOD: Focused functions
+def run_agent(agent: Agent, issue: Issue) -> AgentResult:
+    # Just runs the agent
+    pass
+
+def create_pr(result: AgentResult) -> str:
+    # Just creates PR
+    pass
+```
+
+#### 6. Avoid Clever Code
+```python
+# ❌ BAD: Clever one-liner
+agents = [a for a in [create(t) for t in types] if a and a.valid]
+
+# ✅ GOOD: Clear intent
+agents = []
+for agent_type in types:
+    agent = create_agent(agent_type)
+    if agent and agent.is_valid():
+        agents.append(agent)
+```
+
+#### 7. Configuration Over Code
+```python
+# ❌ BAD: Hardcoded values
+timeout = 1800  # What is this number?
+
+# ✅ GOOD: Named constants with context
+DEFAULT_AGENT_TIMEOUT = 1800  # 30 minutes
+timeout = config.get("timeout", DEFAULT_AGENT_TIMEOUT)
+```
+
+#### 8. Fail Fast and Loud
+```python
+# ❌ BAD: Silent failure
+try:
+    result = do_something()
+except:
+    result = None  # Hide the error
+
+# ✅ GOOD: Clear errors
+try:
+    result = do_something()
+except SpecificError as e:
+    logger.error(f"Failed to do something: {e}")
+    raise CocodeError(f"Operation failed: {e}") from e
+```
+
+### When to Add Complexity
+
+Only add complexity when you have a proven need:
+- ❌ "We might need this later"
+- ❌ "This would be more flexible"
+- ❌ "Other projects do it this way"
+- ✅ "We've hit this limitation 3 times"
+- ✅ "Users are asking for this"
+- ✅ "Tests are becoming difficult"
+
+### Simplicity Checklist
+
+Before committing code, ask:
+- [ ] Can this be done with fewer lines?
+- [ ] Can this be done without a new dependency?
+- [ ] Will a new developer understand this in 30 seconds?
+- [ ] Can this be tested with a simple unit test?
+- [ ] Is there a standard library solution?
+- [ ] Am I solving actual problems or imaginary ones?
+
+### Examples from Our Codebase
+
+#### Simple Agent Protocol (ADR-003)
+Instead of complex RPC or message queues, we use:
+- Environment variables for input
+- Git commits for output
+- Exit codes for status
+
+#### Simple Security (ADR-004)
+Instead of complex sandboxing in MVP:
+- Git worktrees for isolation
+- User-level permissions
+- Clear warnings to users
+
+#### Simple CLI (ADR-002)
+Instead of complex command parsing:
+- Typer with type hints
+- Automatic help generation
+- Standard patterns
+
+Remember: **You can always add complexity later, but you can rarely remove it.**
+
 ## Project Structure
 
 ```
