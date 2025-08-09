@@ -161,27 +161,27 @@ def main():
     issue_number = os.environ.get("COCODE_ISSUE_NUMBER")
     issue_body_file = os.environ.get("COCODE_ISSUE_BODY_FILE")
     ready_marker = os.environ.get("COCODE_READY_MARKER")
-    
+
     log("info", f"Starting work on issue #{issue_number}")
-    
+
     # Read issue body
     with open(issue_body_file, 'r') as f:
         issue_body = f.read()
-    
+
     log("info", "Analyzing issue...")
-    
+
     # Do work here
     # ...
-    
+
     # Make commits
     subprocess.run(["git", "add", "."], check=True)
     subprocess.run(["git", "commit", "-m", f"Working on issue #{issue_number}"], check=True)
-    
+
     # Final commit with ready marker
     final_message = f"Fix issue #{issue_number}\n\n{ready_marker}"
     subprocess.run(["git", "add", "."], check=True)
     subprocess.run(["git", "commit", "-m", final_message], check=True)
-    
+
     log("info", "Work complete")
     return 0
 

@@ -12,60 +12,60 @@ graph TB
         CLI[CLI Commands]
         TUI[TUI Application]
     end
-    
+
     subgraph "Core System"
         ORCH[Orchestrator]
         CONFIG[Config Manager]
         STATE[State Manager]
     end
-    
+
     subgraph "Git Operations"
         REPO[Repository Manager]
         WT[Worktree Manager]
         PUSH[Push/PR Manager]
     end
-    
+
     subgraph "GitHub Integration"
         GH[gh CLI Wrapper]
         ISSUES[Issue Fetcher]
         PR[PR Creator]
     end
-    
+
     subgraph "Agent Framework"
         EXEC[Agent Executor]
         MONITOR[Ready Monitor]
         LOGS[Log Streamer]
     end
-    
+
     subgraph "Agents"
         CLAUDE[Claude Code]
         CODEX[Codex CLI]
         CUSTOM[Custom Agents]
     end
-    
+
     CLI --> ORCH
     TUI --> ORCH
     ORCH --> CONFIG
     ORCH --> STATE
     ORCH --> REPO
     ORCH --> EXEC
-    
+
     REPO --> WT
     REPO --> GH
-    
+
     GH --> ISSUES
     GH --> PR
-    
+
     WT --> PUSH
     PUSH --> PR
-    
+
     EXEC --> CLAUDE
     EXEC --> CODEX
     EXEC --> CUSTOM
-    
+
     EXEC --> MONITOR
     EXEC --> LOGS
-    
+
     LOGS --> TUI
     MONITOR --> STATE
 ```
@@ -106,14 +106,14 @@ sequenceDiagram
     participant GitHub
     participant Agent
     participant Git
-    
+
     User->>CLI: cocode run
     CLI->>Orchestrator: Start workflow
     Orchestrator->>GitHub: Fetch issues
     GitHub-->>Orchestrator: Issue list
     Orchestrator->>User: Select issue
     User-->>Orchestrator: Issue #123
-    
+
     loop For each agent
         Orchestrator->>Git: Create worktree
         Orchestrator->>Agent: Start with context
@@ -121,7 +121,7 @@ sequenceDiagram
         Agent->>Git: Final commit with marker
         Git-->>Orchestrator: Ready detected
     end
-    
+
     Orchestrator->>User: Select best result
     User-->>Orchestrator: Choose agent
     Orchestrator->>Git: Push branch
@@ -151,19 +151,19 @@ graph LR
     subgraph "Environment Variables"
         ENV[COCODE_REPO_PATH<br/>COCODE_ISSUE_NUMBER<br/>COCODE_ISSUE_URL<br/>COCODE_ISSUE_BODY_FILE<br/>COCODE_READY_MARKER]
     end
-    
+
     subgraph "Agent Process"
         AGENT[Agent Binary]
         WORK[Working Directory]
         LOG[Log Output]
         COMMIT[Git Commits]
     end
-    
+
     ENV --> AGENT
     AGENT --> WORK
     AGENT --> LOG
     WORK --> COMMIT
-    
+
     COMMIT -->|Contains Marker| READY[Ready Signal]
 ```
 
@@ -175,23 +175,23 @@ graph TB
         USER[User Environment]
         TOKENS[API Tokens]
     end
-    
+
     subgraph "cocode Process"
         MAIN[Main Process]
         REDACT[Secret Redaction]
     end
-    
+
     subgraph "Agent Processes"
         AGENT1[Agent 1]
         AGENT2[Agent 2]
     end
-    
+
     USER --> TOKENS
     TOKENS --> MAIN
     MAIN --> REDACT
     REDACT --> AGENT1
     REDACT --> AGENT2
-    
+
     AGENT1 -.->|No Direct Access| TOKENS
     AGENT2 -.->|No Direct Access| TOKENS
 ```

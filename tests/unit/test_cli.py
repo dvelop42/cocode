@@ -1,8 +1,7 @@
 """Unit tests for CLI commands."""
 
-from typer.testing import CliRunner
-
 from cocode.__main__ import app
+from typer.testing import CliRunner
 
 runner = CliRunner()
 

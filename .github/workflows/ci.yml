@@ -50,4 +50,3 @@ jobs:
           name: htmlcov-${{ matrix.python-version }}
           path: htmlcov
           if-no-files-found: ignore
-
