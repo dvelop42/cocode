@@ -22,7 +22,7 @@ We will implement the following performance targets and limits for the MVP:
   - Keep last 3 rotated logs per agent (configurable)
 - **Streaming chunk size**: 4KB chunks for TUI updates
 - **Retention policy**: Keep last 2000 lines per agent in TUI (configurable)
-- **Disk persistence**: 
+- **Disk persistence**:
   - Optional full log to `.cocode/logs/` directory
   - Automatic compression for logs > 10MB
   - Log rotation after 50MB total per agent
@@ -39,7 +39,7 @@ We will implement the following performance targets and limits for the MVP:
 - **Warning threshold**: 1GB working tree (display warning, proceed)
 - **Hard limit**: 5GB working tree (require explicit confirmation)
 - **Total repository limit**: 10GB including `.git` directory
-- **Worktree strategy**: 
+- **Worktree strategy**:
   - Use shallow clones (depth=1) for repos > 100MB
   - Single branch fetch for worktrees
   - Sparse checkout support for monorepos
@@ -54,9 +54,9 @@ We will implement the following performance targets and limits for the MVP:
   - Complex issues (> 500 LOC or refactoring): 45 minutes
   - Configurable multiplier based on repository size
 - **Maximum agent timeout**: 60 minutes (hard limit)
-- **Ready marker check interval**: 
+- **Ready marker check interval**:
   - First 30 seconds: Check every 2 seconds
-  - Next 2 minutes: Check every 5 seconds  
+  - Next 2 minutes: Check every 5 seconds
   - After 2 minutes: Check every 10 seconds
 - **Network operation timeouts**:
   - GitHub API calls: 30 seconds
@@ -91,7 +91,7 @@ We will implement the following performance targets and limits for the MVP:
 - Enables optimization targets
 - Supports wide range of hardware
 
-### Negative  
+### Negative
 - May limit power users with high-end hardware
 - Requires configuration for edge cases
 - Additional complexity for resource management
@@ -115,7 +115,7 @@ performance:
   log_rotation_size_mb: 50      # min: 10, max: 500
   max_worktrees: 10             # min: 1, max: 50
   tui_log_lines: 2000           # min: 100, max: 10000
-  
+
 profiles:
   low:  # For CI/CD or low-end machines
     max_concurrent_agents: 2
@@ -184,13 +184,13 @@ profiles:
 # test_performance_limits.py
 def test_concurrent_agent_limit():
     """Verify system respects max concurrent agents"""
-    
+
 def test_memory_limit_enforcement():
     """Verify memory limits are enforced per agent"""
-    
+
 def test_timeout_adaptation():
     """Verify timeout adjusts based on complexity"""
-    
+
 def test_log_rotation():
     """Verify logs rotate at size threshold"""
 ```

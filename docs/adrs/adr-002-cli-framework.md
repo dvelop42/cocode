@@ -110,7 +110,7 @@ console = Console()
 @app.command()
 def init(
     agents: Optional[List[str]] = typer.Option(
-        None, 
+        None,
         "--agent", "-a",
         help="Agents to enable (can be used multiple times)"
     ),
@@ -127,22 +127,22 @@ def init(
 ):
     """Initialize cocode configuration"""
     config = ConfigManager()
-    
+
     if interactive and not agents:
         # Interactive selection
         from cocode.agents.discovery import discover_agents
         available = discover_agents()
-        
+
         if not available:
             console.print("[red]No agents found![/red]")
             raise typer.Exit(1)
-        
+
         # Multi-select prompt
         agents = select_agents(available)
-        
+
     if interactive and not base_agent:
         base_agent = select_base_agent(agents)
-    
+
     config.save(agents=agents, base_agent=base_agent)
     console.print(f"[green]✓[/green] Configuration saved to {config.path}")
 
@@ -165,7 +165,7 @@ def run(
 ):
     """Run agents on a GitHub issue"""
     from cocode.orchestrator import Orchestrator
-    
+
     orchestrator = Orchestrator(dry_run=dry_run)
     orchestrator.run(repo=repo, issue=issue)
 
@@ -173,12 +173,12 @@ def run(
 def doctor():
     """Check system dependencies and configuration"""
     results = run_diagnostics()
-    
+
     for check in results:
         status = "✓" if check.passed else "✗"
         color = "green" if check.passed else "red"
         console.print(f"[{color}]{status}[/{color}] {check.name}: {check.message}")
-    
+
     if not all(r.passed for r in results):
         raise typer.Exit(1)
 
@@ -197,22 +197,22 @@ def clean(
 ):
     """Clean up cocode worktrees and state"""
     from cocode.cleanup import CleanupManager
-    
+
     cleanup = CleanupManager()
     items = cleanup.find_items(include_unmerged=hard)
-    
+
     if not items:
         console.print("Nothing to clean")
         return
-    
+
     # Show what will be removed
     for item in items:
         console.print(f"  - {item}")
-    
+
     if not yes:
         if not Confirm.ask("Remove these items?"):
             raise typer.Abort()
-    
+
     cleanup.clean(items)
     console.print(f"[green]✓[/green] Cleaned {len(items)} items")
 

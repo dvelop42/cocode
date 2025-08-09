@@ -244,21 +244,21 @@ def main():
     except KeyError as e:
         print(f"Error: Required environment variable {e} not set", file=sys.stderr)
         return 2
-    
+
     log("info", f"Starting issue #{issue_number}")
-    
+
     # Read issue
     with open(issue_body_file) as f:
         issue_body = f.read()
-    
+
     # Analyze and fix
     # ... agent logic ...
-    
+
     # Commit changes
     subprocess.run(["git", "add", "."], check=True)
     message = f"fix: issue #{issue_number}\n\n{ready_marker}"
     subprocess.run(["git", "commit", "-m", message], check=True)
-    
+
     log("info", "Complete")
     return 0
 

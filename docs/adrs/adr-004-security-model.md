@@ -122,7 +122,7 @@ import re
 
 class SecretRedactor:
     """Redact common secret patterns from logs."""
-    
+
     PATTERNS = [
         # GitHub tokens
         (r'gh[ps]_[A-Za-z0-9]{36}', 'gh*_***'),
@@ -149,7 +149,7 @@ class SecretRedactor:
         (r'"private_key":\s*"-----BEGIN [A-Z ]+PRIVATE KEY-----[^"]+-----END [A-Z ]+PRIVATE KEY-----\\n"', '"private_key": "-----BEGIN PRIVATE KEY-----***-----END PRIVATE KEY-----"'),
         (r'[a-zA-Z0-9_-]{40,}@[a-zA-Z0-9-]+\.iam\.gserviceaccount\.com', '***@***.iam.gserviceaccount.com'),
     ]
-    
+
     def redact(self, text: str) -> str:
         """Redact secrets from text."""
         for pattern, replacement in self.PATTERNS:
@@ -197,7 +197,7 @@ def run_agent(agent_cmd: List[str], timeout: int = 900) -> subprocess.CompletedP
             # Start new process group for cleanup
             preexec_fn=os.setsid if os.name != 'nt' else None
         )
-        
+
         stdout, _ = process.communicate(timeout=timeout)
         return subprocess.CompletedProcess(
             args=agent_cmd,

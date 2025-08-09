@@ -144,14 +144,14 @@ rp = "/path/to/repo"
 # Docstrings for public functions
 def create_worktree(repo: Repository, branch: str) -> Path:
     """Create a git worktree for the agent.
-    
+
     Args:
         repo: Repository object
         branch: Branch name to create
-        
+
     Returns:
         Path to the created worktree
-        
+
     Raises:
         GitError: If worktree creation fails
     """
@@ -190,7 +190,7 @@ def test_agent_executor_starts_process():
     with patch('subprocess.Popen') as mock_popen:
         executor = AgentExecutor()
         executor.start("test-agent", env={"TEST": "value"})
-        
+
         mock_popen.assert_called_once()
         call_args = mock_popen.call_args
         assert "test-agent" in call_args[0][0]

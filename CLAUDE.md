@@ -498,7 +498,7 @@ logger.info(
 # Secret redaction (ADR-004)
 class SecretRedactor:
     """Redact common secret patterns from logs."""
-    
+
     PATTERNS = [
         # GitHub tokens
         (r'gh[ps]_[A-Za-z0-9]{36}', 'gh*_***'),
@@ -525,7 +525,7 @@ class SecretRedactor:
         (r'"private_key":\s*"-----BEGIN [A-Z ]+PRIVATE KEY-----[^"]+-----END [A-Z ]+PRIVATE KEY-----\\n"', '"private_key": "-----BEGIN PRIVATE KEY-----***-----END PRIVATE KEY-----"'),
         (r'[a-zA-Z0-9_-]{40,}@[a-zA-Z0-9-]+\.iam\.gserviceaccount\.com', '***@***.iam.gserviceaccount.com'),
     ]
-    
+
     def redact(self, text: str) -> str:
         """Redact secrets from text."""
         for pattern, replacement in self.PATTERNS:
@@ -546,7 +546,7 @@ class SecretRedactor:
 1. **Process Isolation**: Each agent in separate git worktree
 2. **User Privileges**: Agents run with user permissions (no sandboxing)
 3. **Environment Filtering**: Allowlist-based with controlled PATH
-4. **Secret Protection**: 
+4. **Secret Protection**:
    - Never handle tokens directly (use gh for GitHub)
    - Environment variable passthrough only
    - Comprehensive log redaction patterns

@@ -29,16 +29,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install -e .[dev]
+          uv pip install --system -e .[dev]
 
-      - name: Lint (ruff)
-        run: ruff check .
-
-      - name: Format check (black)
-        run: black --check .
-
-      - name: Type check (mypy)
-        run: mypy .
+      - name: Run pre-commit (all files)
+        uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: --all-files
 
       - name: Run tests with coverage
         run: pytest
@@ -50,4 +46,3 @@ jobs:
           name: htmlcov-${{ matrix.python-version }}
           path: htmlcov
           if-no-files-found: ignore
-

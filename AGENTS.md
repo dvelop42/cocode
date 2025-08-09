@@ -38,4 +38,3 @@ This repository hosts the `cocode` CLI/TUI for orchestrating multiple code agent
 ## Security & Agent Notes
 - Do not commit secrets. Use environment variables (loaded via `python-dotenv` if present) and GitHub CLI auth (`gh`).
 - When adding agents, implement under `src/cocode/agents/` and follow the environment contract in README. Agents must emit the completion marker “cocode ready for check” in their final commit message.
-
