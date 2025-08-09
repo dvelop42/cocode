@@ -37,8 +37,8 @@ def test_which_agent_prefers_first_alias(monkeypatch):
     # Known agent resolves to the found alias path
     path = which_agent("codex-cli")
     assert path == "/usr/local/bin/codex"
-    # Ensure we checked aliases in order (codex-cli first, then codex)
-    assert calls[:2] == ["codex-cli", "codex"]
+    # Ensure we only called which once for codex
+    assert calls[:1] == ["codex"]
 
 
 def test_list_available_agents_names_only(monkeypatch):
@@ -51,5 +51,5 @@ def test_list_available_agents_names_only(monkeypatch):
     monkeypatch.setattr("shutil.which", fake_which)
 
     names = list_available_agents()
-    assert "claude-code" in names
     assert "codex-cli" not in names
+    assert "claude-code" not in names

@@ -26,8 +26,8 @@ class AgentInfo:
 _KNOWN_AGENTS: dict[str, list[str]] = {
     # Primary command followed by optional aliases, in preferred order
     # Note: real CLIs are commonly "claude" and "codex"
-    "claude-code": ["claude", "claude-code"],
-    "codex-cli": ["codex", "codex-cli"],
+    "claude-code": ["claude"],
+    "codex-cli": ["codex"],
 }
 
 
