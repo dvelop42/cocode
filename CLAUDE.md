@@ -26,9 +26,9 @@
 
 ### ADR-004: Security Model ✅
 - **MVP Model**: User-level privileges, no sandboxing
-- **Isolation**: Git worktrees provide natural separation
-- **Secrets**: Environment variable passthrough with filtering, log redaction
-- **Resources**: 30-minute default timeout, manual cancellation
+- **Isolation**: Git worktrees with filesystem boundary validation
+- **Secrets**: Allowlist-based environment filtering, comprehensive log redaction
+- **Resources**: 15-minute default timeout with process group cleanup
 - **Future**: Container-based sandboxing, network filtering, fine-grained permissions
 
 ## Key Architectural Decisions
@@ -332,20 +332,20 @@ env = {
 }
 
 # Safe environment variable passthrough (ADR-004)
-SAFE_ENV_PREFIXES = [
-    "COCODE_",      # Our own variables
-    "PATH",         # System paths
-    "HOME",         # Home directory
-    "USER",         # Username
-    "LANG",         # Locale settings
-    "LC_",          # Locale settings
-    "TERM",         # Terminal settings
-]
+ALLOWED_ENV_VARS = {
+    'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES', 'LC_TIME',
+    'TERM', 'TERMINFO', 'USER', 'USERNAME', 'TZ', 'TMPDIR'
+}
+
+# Construct safe PATH from known directories
+SAFE_PATH_DIRS = ['/usr/bin', '/bin', '/usr/local/bin', '/opt/homebrew/bin']
+safe_path = ':'.join(SAFE_PATH_DIRS)
 
 filtered_env = {
     k: v for k, v in os.environ.items()
-    if any(k.startswith(prefix) for prefix in SAFE_ENV_PREFIXES)
+    if k in ALLOWED_ENV_VARS or k.startswith('COCODE_')
 }
+env["PATH"] = safe_path  # Add controlled PATH
 final_env = {**filtered_env, **env}
 
 # Agent execution with timeout (ADR-004)
@@ -357,10 +357,10 @@ try:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        timeout=1800  # 30 minutes default
+        timeout=900  # 15 minutes default
     )
 except subprocess.TimeoutExpired:
-    raise AgentTimeoutError("Agent execution exceeded 30 minute limit")
+    raise AgentTimeoutError("Agent execution exceeded 15 minute limit")
 ```
 
 ### Ready Detection
@@ -497,10 +497,19 @@ class SecretRedactor:
         # OpenAI/Anthropic tokens
         (r'sk-[A-Za-z0-9]{48}', 'sk-***'),
         (r'anthropic-[A-Za-z0-9]{40}', 'anthropic-***'),
+        # JWT tokens
+        (r'eyJ[A-Za-z0-9\-_]*\.[A-Za-z0-9\-_]*\.[A-Za-z0-9\-_]*', 'jwt-***'),
+        # Database URLs
+        (r'(postgres|mysql|mongodb)://[^@]+@[^/\s]+/\w+', r'\1://***:***@***/***'),
+        # SSH private keys
+        (r'-----BEGIN [A-Z ]+PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----***-----END PRIVATE KEY-----'),
         # Generic API keys
         (r'api[_-]?key["\s:=]+["\'`]?([A-Za-z0-9_\-]{32,})', 'api_key=***'),
         # Bearer tokens
         (r'Bearer\s+[A-Za-z0-9\-._~+/]+=*', 'Bearer ***'),
+        # AWS credentials
+        (r'AKIA[0-9A-Z]{16}', 'AKIA***'),
+        (r'aws[_-]?secret[_-]?access[_-]?key["\s:=]+["\'`]?([A-Za-z0-9/+=]{40})', 'aws_secret_access_key=***'),
     ]
     
     def redact(self, text: str) -> str:
@@ -522,15 +531,30 @@ class SecretRedactor:
 ### MVP Security Model
 1. **Process Isolation**: Each agent in separate git worktree
 2. **User Privileges**: Agents run with user permissions (no sandboxing)
-3. **Environment Filtering**: Only pass safe environment variables
+3. **Environment Filtering**: Allowlist-based with controlled PATH
 4. **Secret Protection**: 
    - Never handle tokens directly (use gh for GitHub)
    - Environment variable passthrough only
-   - Log redaction for common token patterns
+   - Comprehensive log redaction patterns
    - Never store secrets in config files
-5. **Resource Limits**: 30-minute default timeout, manual cancellation
-6. **Input Validation**: Sanitize issue numbers, branch names
-7. **No Dynamic Code**: Never use eval/exec
+5. **Resource Limits**: 15-minute default timeout with process group cleanup
+6. **Filesystem Boundaries**: Path validation to prevent escaping worktree
+7. **Input Validation**: Sanitize issue numbers, branch names
+8. **No Dynamic Code**: Never use eval/exec
+
+### Filesystem Boundary Validation
+```python
+from pathlib import Path
+
+def validate_agent_path(path: Path, worktree_root: Path) -> bool:
+    """Ensure agent cannot escape worktree boundaries."""
+    try:
+        resolved_path = path.resolve()
+        resolved_root = worktree_root.resolve()
+        return resolved_path.is_relative_to(resolved_root)
+    except (ValueError, RuntimeError):
+        return False
+```
 
 ### Security Warning Display
 ```

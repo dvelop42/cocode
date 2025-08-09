@@ -86,16 +86,15 @@ We will implement a minimal, pragmatic security model for the MVP that relies on
 
 #### Environment Variable Passthrough
 ```python
-# Safe environment variables to pass to agents
-SAFE_ENV_PREFIXES = [
-    "COCODE_",      # Our own variables
-    "PATH",         # System paths
-    "HOME",         # Home directory
-    "USER",         # Username
-    "LANG",         # Locale settings
-    "LC_",          # Locale settings
-    "TERM",         # Terminal settings
-]
+# Use explicit allowlist for better security
+ALLOWED_ENV_VARS = {
+    'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES', 'LC_TIME',
+    'TERM', 'TERMINFO', 'USER', 'USERNAME', 'TZ', 'TMPDIR'
+}
+
+# Construct safe PATH from known directories
+SAFE_PATH_DIRS = ['/usr/bin', '/bin', '/usr/local/bin', '/opt/homebrew/bin']
+safe_path = ':'.join(SAFE_PATH_DIRS)
 
 # Agent-specific environment
 agent_env = {
@@ -104,12 +103,13 @@ agent_env = {
     "COCODE_ISSUE_URL": issue_url,
     "COCODE_ISSUE_BODY_FILE": issue_body_path,
     "COCODE_READY_MARKER": "cocode ready for check",
+    "PATH": safe_path,  # Controlled PATH
 }
 
-# Filter environment
+# Filter environment using allowlist
 filtered_env = {
     k: v for k, v in os.environ.items()
-    if any(k.startswith(prefix) for prefix in SAFE_ENV_PREFIXES)
+    if k in ALLOWED_ENV_VARS or k.startswith('COCODE_')
 }
 
 # Merge environments
@@ -129,10 +129,19 @@ class SecretRedactor:
         # OpenAI/Anthropic tokens
         (r'sk-[A-Za-z0-9]{48}', 'sk-***'),
         (r'anthropic-[A-Za-z0-9]{40}', 'anthropic-***'),
+        # JWT tokens
+        (r'eyJ[A-Za-z0-9\-_]*\.[A-Za-z0-9\-_]*\.[A-Za-z0-9\-_]*', 'jwt-***'),
+        # Database URLs
+        (r'(postgres|mysql|mongodb)://[^@]+@[^/\s]+/\w+', r'\1://***:***@***/***'),
+        # SSH private keys
+        (r'-----BEGIN [A-Z ]+PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----***-----END PRIVATE KEY-----'),
         # Generic API keys
         (r'api[_-]?key["\s:=]+["\'`]?([A-Za-z0-9_\-]{32,})', 'api_key=***'),
         # Bearer tokens
         (r'Bearer\s+[A-Za-z0-9\-._~+/]+=*', 'Bearer ***'),
+        # AWS credentials
+        (r'AKIA[0-9A-Z]{16}', 'AKIA***'),
+        (r'aws[_-]?secret[_-]?access[_-]?key["\s:=]+["\'`]?([A-Za-z0-9/+=]{40})', 'aws_secret_access_key=***'),
     ]
     
     def redact(self, text: str) -> str:
@@ -142,19 +151,65 @@ class SecretRedactor:
         return text
 ```
 
-#### Process Timeout
+#### Filesystem Boundary Validation
 ```python
-def run_agent(agent_cmd: List[str], timeout: int = 1800) -> subprocess.CompletedProcess:
-    """Run agent with timeout (default 30 minutes)."""
+from pathlib import Path
+
+def validate_agent_path(path: Path, worktree_root: Path) -> bool:
+    """Ensure agent cannot escape worktree boundaries."""
     try:
-        return subprocess.run(
+        # Resolve to absolute paths to handle symlinks and ../
+        resolved_path = path.resolve()
+        resolved_root = worktree_root.resolve()
+        return resolved_path.is_relative_to(resolved_root)
+    except (ValueError, RuntimeError):
+        # Path resolution failed - treat as invalid
+        return False
+
+def safe_file_operation(file_path: str, worktree_root: Path) -> Path:
+    """Validate and return safe path for file operations."""
+    path = Path(file_path)
+    if not validate_agent_path(path, worktree_root):
+        raise SecurityError(f"Path {file_path} is outside worktree boundary")
+    return path
+```
+
+#### Process Timeout and Cleanup
+```python
+import signal
+import psutil
+
+def run_agent(agent_cmd: List[str], timeout: int = 900) -> subprocess.CompletedProcess:
+    """Run agent with timeout (default 15 minutes) and proper cleanup."""
+    process = None
+    try:
+        process = subprocess.Popen(
             agent_cmd,
-            timeout=timeout,
-            capture_output=True,
-            text=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            # Start new process group for cleanup
+            preexec_fn=os.setsid if os.name != 'nt' else None
+        )
+        
+        stdout, _ = process.communicate(timeout=timeout)
+        return subprocess.CompletedProcess(
+            args=agent_cmd,
+            returncode=process.returncode,
+            stdout=stdout
         )
     except subprocess.TimeoutExpired:
         logger.error(f"Agent exceeded timeout of {timeout} seconds")
+        if process:
+            # Kill entire process group
+            if os.name != 'nt':
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            else:
+                # Windows: kill process tree
+                parent = psutil.Process(process.pid)
+                for child in parent.children(recursive=True):
+                    child.kill()
+                parent.kill()
         raise AgentTimeoutError(f"Agent execution exceeded {timeout}s limit")
 ```
 
