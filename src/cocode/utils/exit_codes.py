@@ -5,7 +5,7 @@ from enum import IntEnum
 
 class ExitCode(IntEnum):
     """Standard exit codes for agent operations per ADR-003."""
-    
+
     SUCCESS = 0  # Success, check for ready marker
     GENERAL_ERROR = 1  # General error
     INVALID_CONFIG = 2  # Invalid configuration
