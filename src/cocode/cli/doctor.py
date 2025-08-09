@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+from cocode.agents.discovery import discover_agents
 from cocode.github import get_auth_status
 from cocode.utils.dependencies import DependencyInfo, check_all
 from cocode.utils.exit_codes import ExitCode
@@ -41,6 +42,17 @@ def doctor_command() -> None:
     py_warn = sys.version_info < (3, 10)
 
     console.print(_render_table(results))
+
+    # Show available agents discovered on PATH
+    agents = discover_agents()
+    agent_table = Table(title="available agents")
+    agent_table.add_column("Agent", style="bold")
+    agent_table.add_column("Installed")
+    agent_table.add_column("Path", overflow="fold")
+    for info in agents:
+        installed = Text("Yes", style="green") if info.installed else Text("No", style="red")
+        agent_table.add_row(info.name, installed, info.path or "-")
+    console.print(agent_table)
 
     # Show GitHub authentication status
     auth = get_auth_status()

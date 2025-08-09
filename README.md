@@ -13,6 +13,7 @@ cocode is a macOS command-line tool that reads a GitHub issue and orchestrates m
 - **Smart PR Creation**: Choose the best solution or let the base agent recommend
 - **Git Worktree Isolation**: Each agent works in its own isolated worktree
 - **GitHub Integration**: Seamless issue fetching and PR creation via `gh` CLI
+- **Agent Discovery**: Detects supported agent CLIs on PATH and reports availability
 
 ## Prerequisites
 
@@ -22,8 +23,8 @@ cocode is a macOS command-line tool that reads a GitHub issue and orchestrates m
 - git >= 2.31
 - [GitHub CLI (`gh`)](https://cli.github.com/) - authenticated
 - At least one supported agent:
-  - [claude-code](https://github.com/anthropics/claude-code)
-  - [codex-cli](https://github.com/example/codex-cli)
+  - [claude-code](https://github.com/anthropics/claude-code) (CLI: `claude`)
+  - [codex-cli](https://github.com/example/codex-cli) (CLI: `codex`)
 
 ## Installation
 
@@ -96,7 +97,7 @@ cocode doctor
 Checks:
 - Dependency versions and paths
 - GitHub authentication status
-- Agent availability
+- Agent availability (PATH discovery)
 - Environment configuration
 
 ### Cleanup
@@ -152,6 +153,14 @@ Agents receive issue context via environment variables:
 - `COCODE_READY_MARKER` - Marker for completion signal
 
 Agents signal completion by including `"cocode ready for check"` in their final commit message.
+
+### Agent Discovery
+
+`cocode` discovers supported agents by scanning your `PATH` for known CLIs.
+
+- Recognized CLIs: `claude` (Anthropic Claude Code), `codex` (Codex CLI)
+- Fallback aliases are also checked when applicable (e.g., `claude-code`, `codex-cli`)
+- Run `cocode doctor` to see an "available agents" table with install status and resolved paths
 
 ## Project Conventions
 
