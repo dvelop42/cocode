@@ -110,11 +110,7 @@ class CocodeRichApp:
         # Footer with controls
         controls = Table(show_header=False, box=None, padding=1)
         controls.add_row(
-            "[bold]Commands:[/bold]",
-            "1-3: Select agent",
-            "r: Refresh",
-            "p: Create PR",
-            "q: Quit"
+            "[bold]Commands:[/bold]", "1-3: Select agent", "r: Refresh", "p: Create PR", "q: Quit"
         )
 
         if self.selected_agent:
@@ -249,9 +245,7 @@ def main():
 
                 for agent_name in ["claude-code", "codex-cli", "gpt-engineer"]:
                     table.add_row(
-                        agent_name,
-                        "⟳ Running" if i < 7 else "✓ Ready",
-                        f"Processing step {i+1}..."
+                        agent_name, "⟳ Running" if i < 7 else "✓ Ready", f"Processing step {i+1}..."
                     )
 
                 live.update(table)

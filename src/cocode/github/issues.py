@@ -1,7 +1,6 @@
 """GitHub issue operations via gh CLI."""
 
 
-
 class IssueManager:
     """Manages GitHub issues via gh CLI."""
 

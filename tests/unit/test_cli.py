@@ -77,6 +77,7 @@ class TestErrorHandling:
         """Test graceful handling of Ctrl+C."""
         with patch("cocode.__main__.app", side_effect=KeyboardInterrupt):
             from cocode.__main__ import main
+
             result = main()
             assert result == 130
 
@@ -84,5 +85,6 @@ class TestErrorHandling:
         """Test handling of unexpected exceptions."""
         with patch("cocode.__main__.app", side_effect=Exception("Test error")):
             from cocode.__main__ import main
+
             result = main()
             assert result == 1

@@ -8,6 +8,7 @@ from pathlib import Path
 @dataclass
 class AgentStatus:
     """Status of an agent execution."""
+
     name: str
     branch: str
     worktree: Path
@@ -30,7 +31,9 @@ class Agent(ABC):
         pass
 
     @abstractmethod
-    def prepare_environment(self, worktree_path: Path, issue_number: int, issue_body: str) -> dict[str, str]:
+    def prepare_environment(
+        self, worktree_path: Path, issue_number: int, issue_body: str
+    ) -> dict[str, str]:
         """Prepare environment variables for agent execution."""
         pass
 

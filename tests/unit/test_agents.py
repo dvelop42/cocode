@@ -18,7 +18,7 @@ class TestAgentProtocol:
             "COCODE_ISSUE_NUMBER",
             "COCODE_ISSUE_URL",
             "COCODE_ISSUE_BODY_FILE",
-            "COCODE_READY_MARKER"
+            "COCODE_READY_MARKER",
         ]
         for var in required_vars:
             assert var in mock_agent_env
@@ -31,15 +31,12 @@ class TestAgentProtocol:
         subprocess.run(
             ["git", "commit", "--allow-empty", "-m", "fix: issue\n\ncocode ready for check"],
             cwd=temp_repo,
-            check=True
+            check=True,
         )
 
         # Check for ready marker
         result = subprocess.run(
-            ["git", "log", "-1", "--format=%B"],
-            cwd=temp_repo,
-            capture_output=True,
-            text=True
+            ["git", "log", "-1", "--format=%B"], cwd=temp_repo, capture_output=True, text=True
         )
         assert "cocode ready for check" in result.stdout
 
@@ -52,7 +49,7 @@ class TestAgentProtocol:
             2: "Invalid config",
             3: "Missing dependencies",
             124: "Timeout",
-            130: "Interrupted"
+            130: "Interrupted",
         }
 
         for code, meaning in exit_codes.items():
@@ -66,10 +63,7 @@ class TestAgentExecution:
     @pytest.mark.unit
     def test_agent_timeout_enforcement(self, mock_subprocess_run):
         """Test that agents are killed after timeout."""
-        mock_subprocess_run.side_effect = subprocess.TimeoutExpired(
-            cmd=["test-agent"],
-            timeout=900
-        )
+        mock_subprocess_run.side_effect = subprocess.TimeoutExpired(cmd=["test-agent"], timeout=900)
 
         with pytest.raises(subprocess.TimeoutExpired):
             subprocess.run(["test-agent"], timeout=900)
@@ -78,40 +72,47 @@ class TestAgentExecution:
     def test_safe_environment_filtering(self):
         """Test environment variable filtering (ADR-004)."""
         allowed_vars = {
-            'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES',
-            'LC_TIME', 'TERM', 'TERMINFO', 'USER',
-            'USERNAME', 'TZ', 'TMPDIR'
+            "LANG",
+            "LC_ALL",
+            "LC_CTYPE",
+            "LC_MESSAGES",
+            "LC_TIME",
+            "TERM",
+            "TERMINFO",
+            "USER",
+            "USERNAME",
+            "TZ",
+            "TMPDIR",
         }
 
         test_env = {
-            'LANG': 'en_US.UTF-8',
-            'SECRET_KEY': 'should_be_filtered',
-            'COCODE_TEST': 'should_pass_through',
-            'USER': 'testuser',
-            'API_TOKEN': 'should_be_filtered'
+            "LANG": "en_US.UTF-8",
+            "SECRET_KEY": "should_be_filtered",
+            "COCODE_TEST": "should_pass_through",
+            "USER": "testuser",
+            "API_TOKEN": "should_be_filtered",
         }
 
         filtered = {
-            k: v for k, v in test_env.items()
-            if k in allowed_vars or k.startswith('COCODE_')
+            k: v for k, v in test_env.items() if k in allowed_vars or k.startswith("COCODE_")
         }
 
-        assert 'LANG' in filtered
-        assert 'USER' in filtered
-        assert 'COCODE_TEST' in filtered
-        assert 'SECRET_KEY' not in filtered
-        assert 'API_TOKEN' not in filtered
+        assert "LANG" in filtered
+        assert "USER" in filtered
+        assert "COCODE_TEST" in filtered
+        assert "SECRET_KEY" not in filtered
+        assert "API_TOKEN" not in filtered
 
     @pytest.mark.unit
     def test_safe_path_construction(self):
         """Test controlled PATH construction (ADR-004)."""
-        safe_dirs = ['/usr/bin', '/bin', '/usr/local/bin', '/opt/homebrew/bin']
-        safe_path = ':'.join(safe_dirs)
+        safe_dirs = ["/usr/bin", "/bin", "/usr/local/bin", "/opt/homebrew/bin"]
+        safe_path = ":".join(safe_dirs)
 
-        assert '/usr/bin' in safe_path
-        assert '/bin' in safe_path
-        assert '~' not in safe_path
-        assert '..' not in safe_path
+        assert "/usr/bin" in safe_path
+        assert "/bin" in safe_path
+        assert "~" not in safe_path
+        assert ".." not in safe_path
 
 
 class TestAgentIsolation:

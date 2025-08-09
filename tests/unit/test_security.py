@@ -19,7 +19,7 @@ class TestSecretRedaction:
 
         for secret, expected in patterns:
             text = f"Token: {secret} in logs"
-            redacted = re.sub(r'gh[ps]_[A-Za-z0-9]{36}', 'gh*_***', text)
+            redacted = re.sub(r"gh[ps]_[A-Za-z0-9]{36}", "gh*_***", text)
             assert expected in redacted
             assert secret not in redacted
 
@@ -34,9 +34,9 @@ class TestSecretRedaction:
         for secret in secrets:
             text = f"API Key: {secret}"
             # Redact OpenAI keys
-            text = re.sub(r'sk-[A-Za-z0-9]{48}', 'sk-***', text)
+            text = re.sub(r"sk-[A-Za-z0-9]{48}", "sk-***", text)
             # Redact Anthropic keys
-            text = re.sub(r'anthropic-[A-Za-z0-9]{40}', 'anthropic-***', text)
+            text = re.sub(r"anthropic-[A-Za-z0-9]{40}", "anthropic-***", text)
 
             assert secret not in text
             assert "***" in text
@@ -47,11 +47,7 @@ class TestSecretRedaction:
         jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
         text = f"Authorization: Bearer {jwt}"
 
-        redacted = re.sub(
-            r'eyJ[A-Za-z0-9\-_]*\.[A-Za-z0-9\-_]*\.[A-Za-z0-9\-_]*',
-            'jwt-***',
-            text
-        )
+        redacted = re.sub(r"eyJ[A-Za-z0-9\-_]*\.[A-Za-z0-9\-_]*\.[A-Za-z0-9\-_]*", "jwt-***", text)
 
         assert jwt not in redacted
         assert "jwt-***" in redacted
@@ -65,8 +61,8 @@ class TestSecretRedaction:
             "mongodb://root:topsecret@cluster.mongodb.net/app",
         ]
 
-        pattern = r'(postgres|mysql|mongodb)://[^@]+@[^/\s]+/\w+'
-        replacement = r'\1://***:***@***/***'
+        pattern = r"(postgres|mysql|mongodb)://[^@]+@[^/\s]+/\w+"
+        replacement = r"\1://***:***@***/***"
 
         for url in urls:
             text = f"Database: {url}"
@@ -87,13 +83,13 @@ class TestSecretRedaction:
         text = f"AWS_ACCESS_KEY_ID={aws_key} AWS_SECRET_ACCESS_KEY={aws_secret}"
 
         # Redact AWS access key
-        text = re.sub(r'AKIA[0-9A-Z]{16}', 'AKIA***', text)
+        text = re.sub(r"AKIA[0-9A-Z]{16}", "AKIA***", text)
         # Redact AWS secret key
         text = re.sub(
             r'aws[_-]?secret[_-]?access[_-]?key["\s:=]+["\'`]?([A-Za-z0-9/+=]{40})',
-            'aws_secret_access_key=***',
+            "aws_secret_access_key=***",
             text,
-            flags=re.IGNORECASE
+            flags=re.IGNORECASE,
         )
 
         assert aws_key not in text
@@ -108,49 +104,49 @@ class TestEnvironmentSecurity:
     def test_environment_allowlist(self):
         """Test only allowed environment variables pass through."""
         allowed = {
-            'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES',
-            'LC_TIME', 'TERM', 'TERMINFO', 'USER',
-            'USERNAME', 'TZ', 'TMPDIR'
+            "LANG",
+            "LC_ALL",
+            "LC_CTYPE",
+            "LC_MESSAGES",
+            "LC_TIME",
+            "TERM",
+            "TERMINFO",
+            "USER",
+            "USERNAME",
+            "TZ",
+            "TMPDIR",
         }
 
         test_env = {
-            'LANG': 'en_US.UTF-8',
-            'USER': 'testuser',
-            'HOME': '/home/user',  # Should be filtered
-            'PATH': '/usr/bin:/bin',  # Should be filtered
-            'SECRET_TOKEN': 'abc123',  # Should be filtered
-            'COCODE_ISSUE': '123',  # Should pass (COCODE_ prefix)
+            "LANG": "en_US.UTF-8",
+            "USER": "testuser",
+            "HOME": "/home/user",  # Should be filtered
+            "PATH": "/usr/bin:/bin",  # Should be filtered
+            "SECRET_TOKEN": "abc123",  # Should be filtered
+            "COCODE_ISSUE": "123",  # Should pass (COCODE_ prefix)
         }
 
-        filtered = {
-            k: v for k, v in test_env.items()
-            if k in allowed or k.startswith('COCODE_')
-        }
+        filtered = {k: v for k, v in test_env.items() if k in allowed or k.startswith("COCODE_")}
 
-        assert 'LANG' in filtered
-        assert 'USER' in filtered
-        assert 'COCODE_ISSUE' in filtered
-        assert 'HOME' not in filtered
-        assert 'PATH' not in filtered
-        assert 'SECRET_TOKEN' not in filtered
+        assert "LANG" in filtered
+        assert "USER" in filtered
+        assert "COCODE_ISSUE" in filtered
+        assert "HOME" not in filtered
+        assert "PATH" not in filtered
+        assert "SECRET_TOKEN" not in filtered
 
     @pytest.mark.unit
     def test_controlled_path(self):
         """Test PATH is constructed from safe directories only."""
-        safe_dirs = [
-            '/usr/bin',
-            '/bin',
-            '/usr/local/bin',
-            '/opt/homebrew/bin'
-        ]
+        safe_dirs = ["/usr/bin", "/bin", "/usr/local/bin", "/opt/homebrew/bin"]
 
-        safe_path = ':'.join(safe_dirs)
+        safe_path = ":".join(safe_dirs)
 
         # Verify no user directories
-        assert '/home' not in safe_path
-        assert '~' not in safe_path
-        assert './' not in safe_path
-        assert '../' not in safe_path
+        assert "/home" not in safe_path
+        assert "~" not in safe_path
+        assert "./" not in safe_path
+        assert "../" not in safe_path
 
         # Verify expected directories
         for dir in safe_dirs:
@@ -230,13 +226,14 @@ class TestInputValidation:
     @pytest.mark.unit
     def test_branch_name_sanitization(self):
         """Test branch names are sanitized."""
+
         def sanitize_branch(name: str) -> str:
             # Remove invalid characters
-            sanitized = re.sub(r'[^a-zA-Z0-9\-_/]', '-', name)
+            sanitized = re.sub(r"[^a-zA-Z0-9\-_/]", "-", name)
             # Remove consecutive slashes
-            sanitized = re.sub(r'/+', '/', sanitized)
+            sanitized = re.sub(r"/+", "/", sanitized)
             # Remove leading/trailing slashes
-            sanitized = sanitized.strip('/')
+            sanitized = sanitized.strip("/")
             return sanitized
 
         tests = [
@@ -263,7 +260,7 @@ class TestInputValidation:
         ]
 
         def is_safe_arg(arg: str) -> bool:
-            dangerous_chars = [';', '&&', '||', '|', '`', '$', '>', '<', '&']
+            dangerous_chars = [";", "&&", "||", "|", "`", "$", ">", "<", "&"]
             return not any(char in arg for char in dangerous_chars)
 
         for input in dangerous_inputs:
