@@ -1,5 +1,7 @@
 # cocode
 
+[![CI](https://github.com/dvelop42/cocode/actions/workflows/ci.yml/badge.svg)](https://github.com/dvelop42/cocode/actions/workflows/ci.yml)
+
 > Orchestrate multiple code agents to fix GitHub issues in parallel
 
 cocode is a macOS command-line tool that reads a GitHub issue and orchestrates multiple local code agents (e.g., Codex CLI, Claude Code) to attempt a fix in parallel. It presents a split-pane TUI showing each agent's live work log and allows you to pick the best result to create a PR.
