@@ -9,7 +9,7 @@
 ### Technology Stack
 - **Language**: Python 3.10+
 - **CLI Framework**: Typer (decided in ADR-002)
-- **TUI Framework**: Textual or Rich (TBD during implementation)
+- **TUI Framework**: Textual (decided in ADR-001)
 - **Git Operations**: Direct git CLI commands via subprocess
 - **GitHub API**: Via `gh` CLI (never direct API calls)
 - **Distribution**: pipx for isolation
@@ -160,18 +160,24 @@ except FileNotFoundError:
     )
 ```
 
-### TUI Guidelines
+### TUI Guidelines (Textual Framework)
 
 1. **Keep it responsive**: Long operations should show progress
-2. **Streaming logs**: Use generators for real-time output
+2. **Streaming logs**: Use Textual's Log widget for real-time output
 3. **Clear status indicators**: ✓ ready, ✗ failed, ⟳ running
 4. **Keyboard-first**: All operations accessible via keyboard
+5. **Use Textual patterns**:
+   - Compose pattern for building layouts
+   - Reactive attributes for automatic UI updates
+   - CSS for consistent styling
+   - Messages for inter-component communication
+   - Workers for background tasks without blocking UI
 
 ### Testing Strategy
 
 1. **Mock external commands**: Mock `subprocess.run` for git/gh commands
 2. **Fixture-based testing**: Use fixture repos and issues
-3. **TUI testing**: Use Textual's testing utilities
+3. **TUI testing**: Use Textual's built-in testing framework with snapshot testing and event simulation
 4. **Integration tests**: Real git operations in temp directories
 
 ## Code Style
