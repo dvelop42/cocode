@@ -2,6 +2,7 @@
 
 import typer
 from rich.console import Console
+from cocode.utils.exit_codes import ExitCode
 
 console = Console()
 
@@ -13,4 +14,4 @@ def run_command(
 ) -> None:
     """Run agents to fix a GitHub issue."""
     console.print(f"[yellow]Run command not yet implemented for issue #{issue}[/yellow]")
-    raise typer.Exit(1)
+    raise typer.Exit(ExitCode.GENERAL_ERROR)

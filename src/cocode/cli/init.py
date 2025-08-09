@@ -2,6 +2,7 @@
 
 import typer
 from rich.console import Console
+from cocode.utils.exit_codes import ExitCode
 
 console = Console()
 
@@ -11,4 +12,4 @@ def init_command(
 ) -> None:
     """Initialize cocode configuration in the current repository."""
     console.print("[yellow]Init command not yet implemented[/yellow]")
-    raise typer.Exit(1)
+    raise typer.Exit(ExitCode.GENERAL_ERROR)
