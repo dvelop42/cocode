@@ -35,6 +35,7 @@ class TestGitWorktree:
     def test_worktree_cleanup(self, temp_repo):
         """Test removing worktrees."""
         import uuid
+
         # Use unique path to avoid conflicts
         unique_id = str(uuid.uuid4())[:8]
         worktree_path = temp_repo.parent / f"cocode_test_{unique_id}"

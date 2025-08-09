@@ -27,14 +27,20 @@ class TestSecretRedaction:
     def test_api_key_redaction(self):
         """Test API key patterns are redacted."""
         secrets = [
-            ("sk-abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJ", r"sk-[A-Za-z0-9]{48}"),  # OpenAI 48 chars
-            ("anthropic-abcdefghijklmnopqrstuvwxyz1234567890", r"anthropic-[A-Za-z0-9]{40}"),  # Anthropic 40 chars
+            (
+                "sk-abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJ",
+                r"sk-[A-Za-z0-9]{48}",
+            ),  # OpenAI 48 chars
+            (
+                "anthropic-abcdefghijklmnopqrstuvwxyz1234567890",
+                r"anthropic-[A-Za-z0-9]{40}",
+            ),  # Anthropic 40 chars
         ]
 
         for secret, pattern in secrets:
             text = f"API Key: {secret}"
             # Redact the key
-            text = re.sub(pattern, lambda m: m.group(0).split('-')[0] + '-***', text)
+            text = re.sub(pattern, lambda m: m.group(0).split("-")[0] + "-***", text)
 
             assert secret not in text
             assert "***" in text
