@@ -38,8 +38,11 @@ pipx install cocode
 git clone https://github.com/dvelop42/cocode.git
 cd cocode
 
-# Install with uv
-uv pip install -e .
+# Set up development environment
+make dev
+
+# Run CI checks locally before pushing
+make ci
 ```
 
 ## Quick Start
@@ -117,6 +120,61 @@ cocode clean --hard # Remove unmerged worktrees (with confirmation)
 | `p` | Open PR creation dialog |
 | `?` | Show help overlay |
 | `q` | Quit (prompts if agents running) |
+
+## Development
+
+### Setting Up
+
+```bash
+# Clone and install
+git clone https://github.com/dvelop42/cocode.git
+cd cocode
+make dev  # Sets up virtual environment and installs dependencies
+
+# Enable pre-push hooks (optional but recommended)
+git config core.hooksPath .githooks
+```
+
+### Development Commands
+
+```bash
+# Run all CI checks locally (before pushing)
+make ci
+
+# Individual checks
+make lint        # Run ruff linter
+make format      # Format code with black
+make type-check  # Run mypy type checker
+make test        # Run tests with coverage
+
+# Auto-fix issues
+make fix         # Fix linting and formatting issues
+
+# Clean up
+make clean       # Remove caches and generated files
+```
+
+### Running CI Locally
+
+Before pushing changes, always run:
+
+```bash
+make ci
+```
+
+This runs the same checks as GitHub Actions CI:
+- Ruff linting
+- Black formatting check
+- Mypy type checking
+- Pytest with coverage (45% minimum)
+
+### Git Hooks
+
+To automatically run CI checks before each push:
+
+```bash
+git config core.hooksPath .githooks
+```
 
 ## Configuration
 
