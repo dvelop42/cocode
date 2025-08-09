@@ -13,8 +13,8 @@ class TestSecretRedaction:
     def test_github_token_redaction(self):
         """Test GitHub token patterns are redacted."""
         patterns = [
-            ("ghp_1234567890abcdefghijklmnopqrstuvwxyz", "gh*_***"),
-            ("ghs_abcdefghijklmnopqrstuvwxyz1234567890", "gh*_***"),
+            ("ghp_1234567890abcdefghijklmnopqrstuvwxyz", "gh*_***"),  # pragma: allowlist secret
+            ("ghs_abcdefghijklmnopqrstuvwxyz1234567890", "gh*_***"),  # pragma: allowlist secret
         ]
 
         for secret, expected in patterns:
@@ -26,29 +26,26 @@ class TestSecretRedaction:
     @pytest.mark.unit
     def test_api_key_redaction(self):
         """Test API key patterns are redacted."""
-        secrets = [
-            (
-                "sk-abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJ",
-                r"sk-[A-Za-z0-9]{48}",
-            ),  # OpenAI 48 chars
-            (
-                "anthropic-abcdefghijklmnopqrstuvwxyz1234567890",
-                r"anthropic-[A-Za-z0-9]{40}",
-            ),  # Anthropic 40 chars
-        ]
+        # Test with exact length keys
+        openai_key = "sk-" + "a" * 48  # OpenAI format: sk- plus 48 chars
+        anthropic_key = "anthropic-" + "b" * 40  # Anthropic format: anthropic- plus 40 chars
 
-        for secret, pattern in secrets:
-            text = f"API Key: {secret}"
-            # Redact the key
-            text = re.sub(pattern, lambda m: m.group(0).split("-")[0] + "-***", text)
+        # Test OpenAI key redaction
+        text = f"API Key: {openai_key}"
+        text = re.sub(r"sk-[A-Za-z0-9]{48}", "sk-***", text)
+        assert openai_key not in text
+        assert "sk-***" in text
 
-            assert secret not in text
-            assert "***" in text
+        # Test Anthropic key redaction
+        text = f"API Key: {anthropic_key}"
+        text = re.sub(r"anthropic-[A-Za-z0-9]{40}", "anthropic-***", text)
+        assert anthropic_key not in text
+        assert "anthropic-***" in text
 
     @pytest.mark.unit
     def test_jwt_token_redaction(self):
         """Test JWT token redaction."""
-        jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+        jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"  # pragma: allowlist secret
         text = f"Authorization: Bearer {jwt}"
 
         redacted = re.sub(r"eyJ[A-Za-z0-9\-_]*\.[A-Za-z0-9\-_]*\.[A-Za-z0-9\-_]*", "jwt-***", text)
@@ -60,9 +57,9 @@ class TestSecretRedaction:
     def test_database_url_redaction(self):
         """Test database URL redaction."""
         urls = [
-            "postgres://user:pass@localhost:5432/mydb",
-            "mysql://admin:secret@db.example.com/production",
-            "mongodb://root:topsecret@cluster.mongodb.net/app",
+            "postgres://user:pass@localhost:5432/mydb",  # pragma: allowlist secret
+            "mysql://admin:secret@db.example.com/production",  # pragma: allowlist secret
+            "mongodb://root:topsecret@cluster.mongodb.net/app",  # pragma: allowlist secret
         ]
 
         pattern = r"(postgres|mysql|mongodb)://[^@]+@[^/\s]+/\w+"
@@ -81,8 +78,8 @@ class TestSecretRedaction:
     @pytest.mark.unit
     def test_aws_credential_redaction(self):
         """Test AWS credential redaction."""
-        aws_key = "AKIAIOSFODNN7EXAMPLE"
-        aws_secret = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        aws_key = "AKIAIOSFODNN7EXAMPLE"  # pragma: allowlist secret
+        aws_secret = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"  # pragma: allowlist secret
 
         text = f"AWS_ACCESS_KEY_ID={aws_key} AWS_SECRET_ACCESS_KEY={aws_secret}"
 
@@ -126,7 +123,7 @@ class TestEnvironmentSecurity:
             "USER": "testuser",
             "HOME": "/home/user",  # Should be filtered
             "PATH": "/usr/bin:/bin",  # Should be filtered
-            "SECRET_TOKEN": "abc123",  # Should be filtered
+            "SECRET_TOKEN": "abc123",  # Should be filtered  # pragma: allowlist secret
             "COCODE_ISSUE": "123",  # Should pass (COCODE_ prefix)
         }
 
