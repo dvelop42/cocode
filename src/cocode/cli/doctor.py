@@ -54,6 +54,8 @@ def doctor_command() -> None:
         agent_table.add_row(info.name, installed, info.path or "-")
     console.print(agent_table)
 
+    # Note: Agents manage their own auth; no API key checks here
+
     # Show GitHub authentication status
     auth = get_auth_status()
     if auth.authenticated:
