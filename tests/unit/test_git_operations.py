@@ -34,8 +34,11 @@ class TestGitWorktree:
     @pytest.mark.git
     def test_worktree_cleanup(self, temp_repo):
         """Test removing worktrees."""
-        worktree_path = temp_repo.parent / "cocode_test"
-        branch_name = "cocode/123-test"
+        import uuid
+        # Use unique path to avoid conflicts
+        unique_id = str(uuid.uuid4())[:8]
+        worktree_path = temp_repo.parent / f"cocode_test_{unique_id}"
+        branch_name = f"cocode/123-test-{unique_id}"
 
         # Create worktree
         subprocess.run(

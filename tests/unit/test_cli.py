@@ -24,19 +24,21 @@ class TestMainCLI:
     def test_version_flag(self):
         """Test --version flag shows version."""
         result = runner.invoke(app, ["--version"])
+        # The version flag uses typer.Exit() which the test runner sees as exit code 0
         assert result.exit_code == 0
-        assert __version__ in result.stdout
+        assert __version__ in result.output
 
     def test_no_args_shows_help(self):
         """Test that no args shows help."""
         result = runner.invoke(app, [])
         assert result.exit_code == 0
-        assert "cocode" in result.stdout
+        assert "cocode" in result.output
 
     @pytest.mark.parametrize("log_level", ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
     def test_log_level_option(self, log_level):
         """Test --log-level option accepts valid levels."""
-        with patch("cocode.utils.logging.setup_logging") as mock_setup:
+        # The callback is called during app initialization
+        with patch("cocode.__main__.setup_logging") as mock_setup:
             result = runner.invoke(app, ["--log-level", log_level, "--help"])
             assert result.exit_code == 0
             mock_setup.assert_called_once_with(log_level)
