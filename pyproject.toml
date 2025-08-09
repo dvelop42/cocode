@@ -68,6 +68,26 @@ warn_unused_ignores = true
 warn_no_return = true
 check_untyped_defs = true
 strict_equality = true
+exclude = [
+    "prototypes/",
+    "build/",
+    "dist/",
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "git",
+    "typer.*",
+    "textual.*",
+    "rich.*",
+    "pytest",
+]
+ignore_missing_imports = true
 
 [tool.ruff]
 target-version = "py310"
