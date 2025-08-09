@@ -98,7 +98,7 @@ mypy .
 ```
 
 ## Environment Variables
-The app loads environment variables via `python-dotenv` if a `.env` file exists. For local experiments, create `.env` and add keys as needed (no secrets in VCS).
+The app loads environment variables via `python-dotenv` if a `.env` file exists. cocode itself does not read vendor API keys; agent CLIs manage their own authentication. If your agent CLI (e.g., `claude`, `codex`) expects keys from the environment, place them in `.env` locally (never commit secrets).
 
 ## Debugging the TUI
 The TUI is implemented with Textual. During development you can launch the app class directly:

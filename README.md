@@ -98,7 +98,7 @@ Checks:
 - Dependency versions and paths
 - GitHub authentication status
 - Agent availability (PATH discovery)
-- Environment configuration
+- Note: No vendor API key checks (agents manage auth)
 
 ### Cleanup
 
@@ -162,6 +162,10 @@ Agents signal completion by including `"cocode ready for check"` in their final 
 - Fallback aliases are also checked when applicable (e.g., `claude-code`, `codex-cli`)
 - Run `cocode doctor` to see an "available agents" table with install status and resolved paths
 
+### Agent Authentication
+
+Agent CLIs (e.g., `claude`, `codex`) handle their own authentication and API keys. cocode does not read vendor keys; it only sets `COCODE_*` context variables and launches the agent processes.
+
 ## Project Conventions
 
 If your repository contains a `COCODE.md` file, cocode will read and apply team-specific rules for:
@@ -199,7 +203,7 @@ cocode uses:
 ## Security
 
 - GitHub authentication handled via `gh` CLI
-- Agent API keys read from environment variables
+- Agent authentication is handled by their own CLIs (e.g., `claude`, `codex`). cocode does not read or manage vendor API keys.
 - Basic secret redaction in logs and TUI output
 - No telemetry or remote data collection
 
