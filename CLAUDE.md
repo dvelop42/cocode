@@ -598,8 +598,11 @@ Only run agents you trust. Review agent configurations before use.
 ## Useful Commands for Development
 
 ```bash
-# Run in development mode
-pip install -e ".[dev]"
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Run in development mode with uv
+uv pip install -e ".[dev]"
 
 # Type checking
 mypy src/cocode

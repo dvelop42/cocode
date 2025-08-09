@@ -16,6 +16,7 @@ cocode is a macOS command-line tool that reads a GitHub issue and orchestrates m
 
 - macOS (Apple Silicon or Intel)
 - Python 3.10+
+- [uv](https://github.com/astral-sh/uv) - Fast Python package manager
 - git >= 2.31
 - [GitHub CLI (`gh`)](https://cli.github.com/) - authenticated
 - At least one supported agent:
@@ -24,8 +25,21 @@ cocode is a macOS command-line tool that reads a GitHub issue and orchestrates m
 
 ## Installation
 
+### Using pipx (recommended for users)
+
 ```bash
 pipx install cocode
+```
+
+### Using uv (for development)
+
+```bash
+# Clone the repository
+git clone https://github.com/dvelop42/cocode.git
+cd cocode
+
+# Install with uv
+uv pip install -e .
 ```
 
 ## Quick Start
@@ -152,8 +166,8 @@ If your repository contains a `COCODE.md` file, cocode will read and apply team-
 git clone https://github.com/yourusername/cocode.git
 cd cocode
 
-# Install development dependencies
-pip install -e ".[dev]"
+# Install development dependencies with uv
+uv pip install -e ".[dev]"
 
 # Run tests
 pytest
