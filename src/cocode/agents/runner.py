@@ -19,7 +19,11 @@ class AgentRunner:
     """Runs agents with proper temp file management."""
 
     def __init__(self) -> None:
-        """Initialize the agent runner."""
+        """Initialize the agent runner.
+
+        Uses the global TempFileManager singleton for consistent
+        temp file management across the application.
+        """
         self.temp_manager = get_temp_manager()
 
     def run_agent(

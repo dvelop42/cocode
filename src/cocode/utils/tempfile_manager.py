@@ -9,6 +9,7 @@ This module provides a centralized temporary file manager that:
 
 import atexit
 import logging
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -57,7 +58,7 @@ class TempFileManager:
         Returns:
             Path to the created temporary file
         """
-        mode = "w+" if text else "w+b"
+        mode = "w+t" if text else "w+b"
 
         with tempfile.NamedTemporaryFile(
             mode=mode, suffix=suffix, prefix=prefix, dir=dir, delete=False
@@ -146,8 +147,6 @@ class TempFileManager:
         """
         try:
             if path in self._temp_dirs:
-                import shutil
-
                 shutil.rmtree(path, ignore_errors=True)
                 self._temp_dirs.discard(path)
                 logger.debug(f"Cleaned up temp directory: {path}")
@@ -181,8 +180,6 @@ class TempFileManager:
         for temp_dir in list(self._temp_dirs):
             try:
                 if temp_dir.exists():
-                    import shutil
-
                     shutil.rmtree(temp_dir, ignore_errors=True)
                     logger.debug(f"Cleaned up temp directory: {temp_dir}")
             except Exception as e:

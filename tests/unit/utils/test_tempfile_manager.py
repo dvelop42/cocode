@@ -312,3 +312,42 @@ class TestTempFileManager:
         # Cleanup again
         manager.cleanup_all()
         assert not file3.exists()
+
+    def test_special_characters_in_names(self):
+        """Test handling of special characters in file names."""
+        manager = TempFileManager()
+
+        # Test various special characters in suffix/prefix
+        special_chars = ["test_with spaces", "test-with-dashes", "test.with.dots"]
+
+        for chars in special_chars:
+            # Create temp file with special characters
+            temp_file = manager.create_temp_file(prefix=chars + "_")
+            assert temp_file.exists()
+            assert chars in temp_file.name
+
+            # Create named file with special characters
+            named_file = manager.create_temp_file(name=chars)
+            assert named_file.exists()
+            assert manager.get_named_file(chars) == named_file
+
+        # Cleanup
+        manager.cleanup_all()
+
+    def test_long_file_paths(self):
+        """Test handling of very long file names."""
+        manager = TempFileManager()
+
+        # Create a file with a very long prefix
+        long_prefix = "a" * 200 + "_"
+        temp_file = manager.create_temp_file(
+            prefix=long_prefix[:250]
+        )  # Limit to filesystem constraints
+        assert temp_file.exists()
+
+        # The actual filename might be truncated by the OS, but it should still work
+        assert temp_file in manager._temp_files
+
+        # Cleanup should still work
+        manager.cleanup_all()
+        assert not temp_file.exists()
