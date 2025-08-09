@@ -149,3 +149,6 @@ cython_debug/
 # cocode specific
 .cocode/
 cocode_*/
+*.tmp_issue_*
+.tmp_issue_*.md
+.cocode_gh_issues.json
