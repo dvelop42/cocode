@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Orchestrate multiple code agents to fix GitHub issues in parallel"
 readme = "README.md"
 authors = [
-    {name = "dvelop42", email = ""},
+    {name = "dvelop42"},
 ]
 license = {text = "MIT"}
 requires-python = ">=3.10"
@@ -28,7 +28,7 @@ classifiers = [
 dependencies = [
     "typer[all]>=0.9.0",  # CLI framework with completion support
     "rich>=13.0.0",       # Rich terminal output
-    "textual>=0.40.0",    # TUI framework (pending ADR-001)
+    # "textual>=0.40.0",    # TUI framework (pending ADR-001)
     "pydantic>=2.0.0",    # Data validation
     "python-dotenv>=1.0.0",  # Environment variable management
 ]
@@ -45,7 +45,7 @@ dev = [
 ]
 
 [project.scripts]
-cocode = "cocode.cli:app"
+cocode = "cocode.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/dvelop42/cocode"
