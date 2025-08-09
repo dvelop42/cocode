@@ -110,6 +110,3 @@ If we ever need to migrate away from Textual:
 - [Rich Documentation](https://rich.readthedocs.io/)
 - Prototype code in `/prototypes/` directory
 - Issue #79: TUI Framework Selection
-
-## Decision
-✅ **Textual** - Chosen for its superior feature set, testing capabilities, and development experience that align with cocode's requirements for a professional, maintainable TUI.

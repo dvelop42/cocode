@@ -196,6 +196,6 @@ MIT - see [LICENSE](LICENSE) file for details
 
 ## Support
 
-- Report issues: [GitHub Issues](https://github.com/yourusername/cocode/issues)
-- Documentation: [Wiki](https://github.com/yourusername/cocode/wiki)
-- Discussions: [GitHub Discussions](https://github.com/yourusername/cocode/discussions)
+- Report issues: [GitHub Issues](https://github.com/dvelop42/cocode/issues)
+- Documentation: [Wiki](https://github.com/dvelop42/cocode/wiki)
+- Discussions: [GitHub Discussions](https://github.com/dvelop42/cocode/discussions)

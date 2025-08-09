@@ -159,9 +159,9 @@ class CocodeRichApp:
             self.update_queue.put("update")
     
     def handle_input(self):
-        """Handle keyboard input"""
+        """Handle keyboard input (NOTE: blocks in this demo - a key limitation of Rich)"""
         try:
-            key = self.console.input(timeout=0.1)
+            key = self.console.input(timeout=0.1)  # This blocks - demonstrating Rich's limitation
             
             if key == "q":
                 self.running = False
