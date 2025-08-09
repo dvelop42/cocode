@@ -53,4 +53,3 @@ def test_list_available_agents_names_only(monkeypatch):
     names = list_available_agents()
     assert "claude-code" in names
     assert "codex-cli" not in names
-

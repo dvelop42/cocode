@@ -49,9 +49,7 @@ def discover_agents() -> list[AgentInfo]:
     results: list[AgentInfo] = []
     for name, commands in _KNOWN_AGENTS.items():
         path = _first_on_path(commands)
-        results.append(
-            AgentInfo(name=name, installed=bool(path), path=path, aliases=commands)
-        )
+        results.append(AgentInfo(name=name, installed=bool(path), path=path, aliases=commands))
     return results
 
 

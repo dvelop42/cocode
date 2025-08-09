@@ -7,8 +7,8 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from cocode.github import get_auth_status
 from cocode.agents.discovery import discover_agents
+from cocode.github import get_auth_status
 from cocode.utils.dependencies import DependencyInfo, check_all
 from cocode.utils.exit_codes import ExitCode
 
