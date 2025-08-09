@@ -11,8 +11,8 @@ cocode orchestrates multiple code agents to fix GitHub issues in parallel.
 - [Agent Protocol](architecture/agent-protocol.md) - Agent communication specification
 
 ### Architecture Decision Records (ADRs)
-- [ADR-001: TUI Framework Selection](adrs/adr-001-tui-framework.md) - Pending
-- [ADR-002: CLI Framework Selection](adrs/adr-002-cli-framework.md) - Pending
+- [ADR-001: TUI Framework Selection](adrs/adr-001-tui-framework.md) - **Accepted** (Textual)
+- [ADR-002: CLI Framework Selection](adrs/adr-002-cli-framework.md) - **Accepted** (Typer)
 - [ADR-003: Agent Communication Protocol](adrs/adr-003-agent-protocol.md) - Pending
 - [ADR-004: Security Model](adrs/adr-004-security.md) - Pending
 - [ADR-005: Performance Targets](adrs/adr-005-performance.md) - Pending
