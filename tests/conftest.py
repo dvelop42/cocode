@@ -1,13 +1,12 @@
 """Shared pytest fixtures."""
 
-import pytest
-from pathlib import Path
-import tempfile
-import shutil
-import subprocess
 import json
-from typing import Dict, Any
+import subprocess
+import tempfile
+from pathlib import Path
 from unittest.mock import Mock, patch
+
+import pytest
 
 
 @pytest.fixture
@@ -19,12 +18,12 @@ def temp_repo():
         subprocess.run(["git", "init"], cwd=repo_path, check=True)
         subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_path, check=True)
         subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_path, check=True)
-        
+
         # Create initial commit
         (repo_path / "README.md").write_text("# Test Repository")
         subprocess.run(["git", "add", "."], cwd=repo_path, check=True)
         subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_path, check=True)
-        
+
         yield repo_path
 
 
@@ -107,7 +106,7 @@ def mock_gh_cli():
     with patch("subprocess.run") as mock_run:
         def side_effect(*args, **kwargs):
             cmd = args[0] if args else kwargs.get("args", [])
-            
+
             if "gh" in cmd and "auth" in cmd and "status" in cmd:
                 return Mock(returncode=0, stdout="Logged in as test-user")
             elif "gh" in cmd and "issue" in cmd and "view" in cmd:
@@ -125,6 +124,6 @@ def mock_gh_cli():
                     stdout="https://github.com/test/repo/pull/456"
                 )
             return Mock(returncode=0, stdout="", stderr="")
-        
+
         mock_run.side_effect = side_effect
         yield mock_run

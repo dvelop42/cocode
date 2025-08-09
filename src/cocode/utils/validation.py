@@ -2,15 +2,14 @@
 
 import re
 from pathlib import Path
-from typing import Optional
 
 
 def validate_issue_number(issue: int) -> bool:
     """Validate GitHub issue number.
-    
+
     Args:
         issue: Issue number to validate
-        
+
     Returns:
         True if valid, False otherwise
     """
@@ -19,10 +18,10 @@ def validate_issue_number(issue: int) -> bool:
 
 def sanitize_branch_name(name: str) -> str:
     """Sanitize a string to be a valid git branch name.
-    
+
     Args:
         name: Raw branch name
-        
+
     Returns:
         Sanitized branch name
     """
@@ -40,11 +39,11 @@ def sanitize_branch_name(name: str) -> str:
 
 def validate_agent_path(path: Path, worktree_root: Path) -> bool:
     """Ensure agent cannot escape worktree boundaries.
-    
+
     Args:
         path: Path to validate
         worktree_root: Root of the worktree
-        
+
     Returns:
         True if path is within worktree, False otherwise
     """
@@ -61,12 +60,12 @@ def validate_agent_path(path: Path, worktree_root: Path) -> bool:
         return False
 
 
-def validate_repo_path(path: Optional[Path] = None) -> bool:
+def validate_repo_path(path: Path | None = None) -> bool:
     """Validate that path is a git repository.
-    
+
     Args:
         path: Path to check (defaults to current directory)
-        
+
     Returns:
         True if valid git repo, False otherwise
     """

@@ -2,6 +2,7 @@
 
 import typer
 from rich.console import Console
+
 from cocode.utils.exit_codes import ExitCode
 
 console = Console()
