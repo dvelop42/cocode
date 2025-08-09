@@ -1,14 +1,71 @@
 """Check system dependencies and configuration."""
 
+from __future__ import annotations
+
 import typer
 from rich.console import Console
+from rich.table import Table
+from rich.text import Text
 
+from cocode.github import get_auth_status
+from cocode.utils.dependencies import DependencyInfo, check_all
 from cocode.utils.exit_codes import ExitCode
 
 console = Console()
 
 
+def _render_table(results: list[DependencyInfo]) -> Table:
+    table = Table(title="cocode doctor")
+    table.add_column("Dependency", style="bold")
+    table.add_column("Installed")
+    table.add_column("Version")
+    table.add_column("Path", overflow="fold")
+
+    for info in results:
+        installed = Text("Yes", style="green") if info.installed else Text("No", style="red")
+        table.add_row(info.name, installed, info.version or "-", info.path or "-")
+    return table
+
+
 def doctor_command() -> None:
     """Check system dependencies and configuration."""
-    console.print("[yellow]Doctor command not yet implemented[/yellow]")
-    raise typer.Exit(ExitCode.MISSING_DEPS)  # More appropriate for doctor command
+    results = check_all()
+
+    # Required tools for CLI use
+    required_missing = [r.name for r in results if r.name in {"git", "gh"} and not r.installed]
+
+    # Warn on Python < 3.10 but do not fail the command
+    py = next((r for r in results if r.name == "python"), None)
+    py_warn = False
+    if py and py.version:
+        try:
+            parts = [int(p) for p in py.version.split(".")[:2]]
+            py_warn = parts < [3, 10]
+        except ValueError:
+            py_warn = False
+
+    console.print(_render_table(results))
+
+    # Show GitHub authentication status
+    auth = get_auth_status()
+    if auth.authenticated:
+        console.print(
+            f"[green]GitHub:[/green] Logged in to [bold]{auth.host}[/bold] as "
+            f"[bold]{auth.username}[/bold] ({auth.auth_method})"
+        )
+    else:
+        detail = f" ({auth.error})" if auth.error else ""
+        console.print(f"[red]GitHub:[/red] Not authenticated{detail}")
+
+    if py_warn:
+        console.print(
+            "[yellow]Warning:[/yellow] Python 3.10+ is recommended. Detected "
+            f"[bold]{py.version}[/bold] at {py.path}"
+        )
+
+    if required_missing:
+        console.print("[red]Missing required dependencies:[/red] " + ", ".join(required_missing))
+        raise typer.Exit(ExitCode.MISSING_DEPS)
+
+    console.print("[green]All required dependencies are installed.[/green]")
+    raise typer.Exit(ExitCode.SUCCESS)
