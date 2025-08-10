@@ -7,7 +7,9 @@ import typer
 from rich.console import Console
 from typer import Context
 
-from cocode.agents.base import AgentStatus
+from cocode.agents.base import Agent, AgentStatus
+from cocode.agents.claude_code import ClaudeCodeAgent
+from cocode.agents.default import GitBasedAgent
 from cocode.agents.discovery import discover_agents
 from cocode.agents.lifecycle import AgentLifecycleManager
 from cocode.git.worktree import WorktreeManager
@@ -16,6 +18,21 @@ from cocode.tui.app import CocodeApp
 from cocode.utils.exit_codes import ExitCode
 
 console = Console()
+
+
+def create_agent(agent_name: str) -> Agent:
+    """Create an agent instance based on the agent name.
+
+    This is a simple factory following the KISS principle from CLAUDE.md.
+    """
+    if agent_name == "claude-code":
+        return ClaudeCodeAgent()
+    # Add more agent types as they are implemented
+    # elif agent_name == "codex-cli":
+    #     return CodexAgent()
+    else:
+        # Fallback to generic git-based agent
+        return GitBasedAgent(agent_name)
 
 
 def run_command(
@@ -53,16 +70,14 @@ def run_command(
             raise typer.Exit(ExitCode.GENERAL_ERROR)
 
         # Discover available agents
-        from cocode.agents.default import GitBasedAgent
 
         discovered_agents = discover_agents()
         available_agents = {}
 
         for agent_info in discovered_agents:
             if agent_info.installed:
-                # Create agent instance - in real implementation this would
-                # instantiate the appropriate agent class based on agent_info.name
-                available_agents[agent_info.name] = GitBasedAgent(agent_info.name)
+                # Create agent instance using the factory
+                available_agents[agent_info.name] = create_agent(agent_info.name)
 
         if not available_agents:
             console.print("[red]No agents found. Run 'cocode init' to configure agents.[/red]")
