@@ -6,6 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from cocode.agents.base import AgentConfig
 from cocode.agents.default import GitBasedAgent
 
 logger = logging.getLogger(__name__)
@@ -38,26 +39,30 @@ class CodexCliAgent(GitBasedAgent):
     Command executed:
         codex fix --issue-file $COCODE_ISSUE_BODY_FILE --issue-number $COCODE_ISSUE_NUMBER \\
                   --no-interactive --commit-marker $COCODE_READY_MARKER
+        (or custom command from config)
 
     The CLI will read the issue from COCODE_ISSUE_BODY_FILE and make
     commits in the worktree at COCODE_REPO_PATH. When ready, it includes
     the COCODE_READY_MARKER in its final commit message.
     """
 
-    def __init__(self) -> None:
-        """Initialize Codex CLI agent."""
-        super().__init__("codex-cli")
+    def __init__(self, config: AgentConfig | None = None) -> None:
+        """Initialize Codex CLI agent with optional configuration."""
+        if config is None:
+            config = AgentConfig(name="codex-cli", command="codex")
+        super().__init__(config.name, config)
         self.command_path: str | None = None
         self.cli_style: str | None = None  # 'standard' or 'env-based'
 
     def validate_environment(self) -> bool:
         """Check if Codex CLI is available and detect its interface style."""
-        # Check for 'codex' command
-        self.command_path = shutil.which("codex")
+        # Use command from config if provided, otherwise default to 'codex'
+        command = self.config.command or "codex"
+        self.command_path = shutil.which(command)
 
         if not self.command_path:
             logger.warning(
-                "Codex CLI not found. Please install Codex CLI and ensure it's in your PATH"
+                f"Codex CLI '{command}' not found. Please install Codex CLI and ensure it's in your PATH"
             )
             return False
 
@@ -103,9 +108,12 @@ class CodexCliAgent(GitBasedAgent):
         already set by the runner. Codex CLI will handle its own
         authentication environment variables (CODEX_API_KEY, OPENAI_API_KEY, etc.)
         """
-        # No additional environment setup needed
+        # Start with any custom environment variables from config
+        env = dict(self.config.environment) if self.config.environment else {}
+
         # Codex CLI will read its own auth variables from the environment
-        return {}
+        # Additional custom env vars can be passed through config
+        return env
 
     def get_command(self) -> list[str]:
         """Get the command to execute Codex CLI.
@@ -119,10 +127,11 @@ class CodexCliAgent(GitBasedAgent):
         """
         if not self.command_path:
             # Fallback if validate wasn't called
-            self.command_path = shutil.which("codex")
+            cmd_name = self.config.command or "codex"
+            self.command_path = shutil.which(cmd_name)
             if not self.command_path:
                 raise RuntimeError(
-                    "Codex CLI not found. Please install Codex CLI and verify it's in your PATH"
+                    f"Codex CLI '{cmd_name}' not found. Please install Codex CLI and verify it's in your PATH"
                 )
             self.cli_style = self._detect_cli_style()
 
@@ -132,13 +141,13 @@ class CodexCliAgent(GitBasedAgent):
         # Build command based on detected CLI style
         if self.cli_style == "standard":
             # Standard CLI with explicit flags
-            command = self._build_standard_command()
+            cmd_list = self._build_standard_command()
         else:
             # Environment-based CLI that reads COCODE_* variables directly
-            command = self._build_env_based_command()
+            cmd_list = self._build_env_based_command()
 
-        logger.debug(f"Codex CLI command: {' '.join(command)}")
-        return command
+        logger.debug(f"Codex CLI command: {' '.join(cmd_list)}")
+        return cmd_list
 
     def _validate_environment_variables(self) -> None:
         """Validate required environment variables."""
@@ -157,6 +166,12 @@ class CodexCliAgent(GitBasedAgent):
         """Build command for standard CLI interface with flags."""
         command: list[str] = [self.command_path]
 
+        # Use custom args from config if provided
+        if self.config.args:
+            command.extend(self.config.args)
+            return command
+
+        # Otherwise build default command
         # Add subcommand
         command.append("fix")
 
@@ -182,8 +197,17 @@ class CodexCliAgent(GitBasedAgent):
 
     def _build_env_based_command(self) -> list[str]:
         """Build command for environment-based CLI that reads COCODE_* vars."""
-        # Simple command that relies on environment variables
-        return [self.command_path]
+        command: list[str] = [self.command_path]
+
+        # Use custom args from config if provided
+        if self.config.args:
+            command.extend(self.config.args)
+        else:
+            # Default minimal command that relies on environment variables
+            # Some CLIs may not need any args when using env vars
+            pass
+
+        return command
 
     def handle_error(self, exit_code: int, output: str) -> str:
         """Handle Codex CLI specific error codes and messages.

@@ -4,6 +4,7 @@ import logging
 import shutil
 from pathlib import Path
 
+from cocode.agents.base import AgentConfig
 from cocode.agents.default import GitBasedAgent
 
 logger = logging.getLogger(__name__)
@@ -31,26 +32,29 @@ class ClaudeCodeAgent(GitBasedAgent):
         - CLAUDE_CODE_OAUTH_TOKEN: OAuth token for web authentication
 
     Command executed:
-        claude code --non-interactive
+        claude code --non-interactive (or custom command from config)
 
     The CLI will read the issue from COCODE_ISSUE_BODY_FILE and make
     commits in the worktree at COCODE_REPO_PATH. When ready, it includes
     the COCODE_READY_MARKER in its final commit message.
     """
 
-    def __init__(self) -> None:
-        """Initialize Claude Code agent."""
-        super().__init__("claude-code")
+    def __init__(self, config: AgentConfig | None = None) -> None:
+        """Initialize Claude Code agent with optional configuration."""
+        if config is None:
+            config = AgentConfig(name="claude-code", command="claude")
+        super().__init__(config.name, config)
         self.command_path: str | None = None
 
     def validate_environment(self) -> bool:
         """Check if Claude Code CLI is available."""
-        # Check for 'claude' command (the actual CLI name)
-        self.command_path = shutil.which("claude")
+        # Use command from config if provided, otherwise default to 'claude'
+        command = self.config.command or "claude"
+        self.command_path = shutil.which(command)
 
         if not self.command_path:
             logger.warning(
-                "Claude Code CLI not found. Install from: https://github.com/anthropics/claude-code"
+                f"Claude Code CLI '{command}' not found. Install from: https://github.com/anthropics/claude-code"
             )
             return False
 
@@ -66,9 +70,12 @@ class ClaudeCodeAgent(GitBasedAgent):
         already set by the runner. Claude CLI will handle its own
         authentication environment variables (CLAUDE_API_KEY, etc.)
         """
-        # No additional environment setup needed
+        # Start with any custom environment variables from config
+        env = dict(self.config.environment) if self.config.environment else {}
+
         # Claude CLI will read its own auth variables from the environment
-        return {}
+        # Additional custom env vars can be passed through config
+        return env
 
     def get_command(self) -> list[str]:
         """Get the command to execute Claude Code.
@@ -83,27 +90,33 @@ class ClaudeCodeAgent(GitBasedAgent):
         """
         if not self.command_path:
             # Fallback if validate wasn't called
-            self.command_path = shutil.which("claude")
+            cmd_name = self.config.command or "claude"
+            self.command_path = shutil.which(cmd_name)
             if not self.command_path:
                 raise RuntimeError(
-                    "Claude CLI not found. Please install Claude Code from: "
+                    f"Claude CLI '{cmd_name}' not found. Please install Claude Code from: "
                     "https://github.com/anthropics/claude-code or verify it's in your PATH"
                 )
 
-        # Build command based on Claude Code CLI structure
-        # Claude CLI reads from COCODE_* environment variables automatically
-        # and will make commits in the current directory (worktree)
-        command: list[str] = [
-            self.command_path,
-            "code",  # Subcommand for code operations
-            "--non-interactive",  # Don't prompt for user input
-        ]
+        # Build command - start with the executable
+        command: list[str] = [self.command_path]
+
+        # Add custom args from config if provided, otherwise use defaults
+        if self.config.args:
+            command.extend(self.config.args)
+        else:
+            # Default Claude Code arguments
+            command.extend(
+                [
+                    "code",  # Subcommand for code operations
+                    "--non-interactive",  # Don't prompt for user input
+                ]
+            )
 
         # Claude CLI will read issue context from environment variables:
         # - COCODE_ISSUE_NUMBER
         # - COCODE_ISSUE_BODY_FILE
         # - COCODE_READY_MARKER
-        # No additional flags are needed
 
         logger.debug(f"Claude Code command: {' '.join(command)}")
         return command

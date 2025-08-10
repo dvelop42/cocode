@@ -1,6 +1,7 @@
 """Default agent implementations."""
 
 import logging
+import shutil
 from pathlib import Path
 
 from cocode.agents.base import Agent
@@ -14,23 +15,35 @@ class GitBasedAgent(Agent):
 
     This provides a default implementation of check_ready that looks for
     the ready marker in git commits, which is the standard protocol.
+    This class can be used directly for generic agents configured through config files.
     """
 
     def validate_environment(self) -> bool:
         """Check if agent can run in current environment."""
-        # Basic validation - can be overridden by subclasses
+        # For generic agents, check if command exists
+        if self.config.command:
+            command_path = shutil.which(self.config.command)
+            if not command_path:
+                logger.warning(f"Agent command '{self.config.command}' not found in PATH")
+                return False
         return True
 
     def prepare_environment(
         self, worktree_path: Path, issue_number: int, issue_body: str
     ) -> dict[str, str]:
         """Prepare environment variables for agent execution."""
-        # Return empty dict - subclasses should override
-        return {}
+        # Return custom environment variables from config
+        return dict(self.config.environment) if self.config.environment else {}
 
     def get_command(self) -> list[str]:
         """Get the command to execute the agent."""
-        # Default command - subclasses should override
+        # Use command from config if available
+        if self.config.command:
+            command = [self.config.command]
+            if self.config.args:
+                command.extend(self.config.args)
+            return command
+        # Fallback for agents without command
         return ["echo", f"Agent {self.name} not implemented"]
 
     def check_ready(self, worktree_path: Path) -> bool:

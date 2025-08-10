@@ -110,7 +110,7 @@ class TestClaudeCodeAgent:
         """Test that RuntimeError is raised when Claude CLI is not found."""
         mock_which.return_value = None
 
-        with pytest.raises(RuntimeError, match="Claude CLI not found.*PATH"):
+        with pytest.raises(RuntimeError, match="Claude CLI.*not found.*PATH"):
             agent.get_command()
 
     def test_get_command_with_issue_number(self, agent):

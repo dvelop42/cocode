@@ -225,7 +225,7 @@ class TestCodexCliAgent:
         """Test that RuntimeError is raised when Codex CLI is not found."""
         mock_which.return_value = None
 
-        with pytest.raises(RuntimeError, match="Codex CLI not found.*PATH"):
+        with pytest.raises(RuntimeError, match="Codex CLI.*not found.*PATH"):
             agent.get_command()
 
     def test_handle_error_known_exit_codes(self, agent):

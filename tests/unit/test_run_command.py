@@ -6,17 +6,21 @@ from cocode.__main__ import app
 from cocode.agents.claude_code import ClaudeCodeAgent
 from cocode.agents.codex_cli import CodexCliAgent
 from cocode.agents.default import GitBasedAgent
-from cocode.cli.run import create_agent
+from cocode.agents.factory import AgentFactory
 
 runner = CliRunner()
 
 
 def test_create_agent_factory_mappings():
     """Factory returns proper agent implementations."""
-    assert isinstance(create_agent("claude-code"), ClaudeCodeAgent)
-    assert isinstance(create_agent("codex-cli"), CodexCliAgent)
+    factory = AgentFactory()
+    # Test with validation disabled to avoid dependency checks in tests
+    assert isinstance(
+        factory.create_agent("claude-code", validate_dependencies=False), ClaudeCodeAgent
+    )
+    assert isinstance(factory.create_agent("codex-cli", validate_dependencies=False), CodexCliAgent)
     # Unknown agent name falls back to generic git-based agent
-    assert isinstance(create_agent("unknown"), GitBasedAgent)
+    assert isinstance(factory.create_agent("unknown", validate_dependencies=False), GitBasedAgent)
 
 
 def test_run_command_dry_run_executes_without_side_effects():

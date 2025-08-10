@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 @dataclass
@@ -18,12 +19,42 @@ class AgentStatus:
     error_message: str | None = None
 
 
+@dataclass
+class AgentConfig:
+    """Configuration for an agent."""
+
+    name: str
+    command: str | None = None
+    args: list[str] | None = None
+    timeout: int = 900  # Default 15 minutes
+    environment: dict[str, str] | None = None
+    custom_settings: dict[str, Any] | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "AgentConfig":
+        """Create AgentConfig from dictionary."""
+        return cls(
+            name=data.get("name", ""),
+            command=data.get("command"),
+            args=data.get("args", []),
+            timeout=data.get("timeout", 900),
+            environment=data.get("environment", {}),
+            custom_settings=data.get("custom_settings", {}),
+        )
+
+
 class Agent(ABC):
     """Base class for all code agents."""
 
-    def __init__(self, name: str):
-        """Initialize agent with a name."""
+    def __init__(self, name: str, config: AgentConfig | None = None):
+        """Initialize agent with a name and optional configuration.
+
+        Args:
+            name: Agent name
+            config: Optional agent configuration
+        """
         self.name = name
+        self.config = config or AgentConfig(name=name)
 
     @abstractmethod
     def validate_environment(self) -> bool:

@@ -7,11 +7,9 @@ import typer
 from rich.console import Console
 from typer import Context
 
-from cocode.agents.base import Agent, AgentStatus
-from cocode.agents.claude_code import ClaudeCodeAgent
-from cocode.agents.codex_cli import CodexCliAgent
-from cocode.agents.default import GitBasedAgent
+from cocode.agents.base import AgentStatus
 from cocode.agents.discovery import discover_agents
+from cocode.agents.factory import AgentFactory, AgentFactoryError
 from cocode.agents.lifecycle import AgentLifecycleManager
 from cocode.git.worktree import WorktreeManager
 from cocode.github.issues import IssueManager
@@ -19,21 +17,6 @@ from cocode.tui.app import CocodeApp
 from cocode.utils.exit_codes import ExitCode
 
 console = Console()
-
-
-def create_agent(agent_name: str) -> Agent:
-    """Create an agent instance based on the agent name.
-
-    This is a simple factory following the KISS principle from CLAUDE.md.
-    """
-    if agent_name == "claude-code":
-        return ClaudeCodeAgent()
-    # Add more agent types as they are implemented
-    elif agent_name == "codex-cli":
-        return CodexCliAgent()
-    else:
-        # Fallback to generic git-based agent
-        return GitBasedAgent(agent_name)
 
 
 def run_command(
@@ -70,18 +53,29 @@ def run_command(
             console.print(f"[red]Failed to fetch issue #{issue}[/red]")
             raise typer.Exit(ExitCode.GENERAL_ERROR)
 
-        # Discover available agents
+        # Initialize agent factory
+        factory = AgentFactory()
 
+        # Discover and create agents
         discovered_agents = discover_agents()
         available_agents = {}
 
         for agent_info in discovered_agents:
             if agent_info.installed:
-                # Create agent instance using the factory
-                available_agents[agent_info.name] = create_agent(agent_info.name)
+                try:
+                    # Create agent instance using the factory with dependency validation
+                    agent = factory.create_agent(agent_info.name, validate_dependencies=True)
+                    available_agents[agent_info.name] = agent
+                except AgentFactoryError as e:
+                    console.print(
+                        f"[yellow]Warning: Could not initialize {agent_info.name}: {e}[/yellow]"
+                    )
+                    if debug:
+                        console.print(f"[dim]{e}[/dim]")
 
         if not available_agents:
             console.print("[red]No agents found. Run 'cocode init' to configure agents.[/red]")
+            console.print("[yellow]Run 'cocode doctor' to check agent dependencies.[/yellow]")
             raise typer.Exit(ExitCode.GENERAL_ERROR)
 
         # Filter agents if specified
