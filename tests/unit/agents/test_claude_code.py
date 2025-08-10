@@ -20,7 +20,7 @@ class TestClaudeCodeAgent:
     def test_agent_initialization(self, agent):
         """Test agent initializes with correct name."""
         assert agent.name == "claude-code"
-        assert agent.command_path is None
+        assert agent._command_path is None
 
     @patch("shutil.which")
     def test_validate_environment_found(self, mock_which, agent):
@@ -30,7 +30,7 @@ class TestClaudeCodeAgent:
         result = agent.validate_environment()
 
         assert result is True
-        assert agent.command_path == "/usr/local/bin/claude"
+        assert agent._command_path == "/usr/local/bin/claude"
         mock_which.assert_called_once_with("claude")
 
     @patch("shutil.which")
@@ -41,7 +41,7 @@ class TestClaudeCodeAgent:
         result = agent.validate_environment()
 
         assert result is False
-        assert agent.command_path is None
+        assert agent._command_path is None
         mock_which.assert_called_once_with("claude")
 
     def test_prepare_environment_no_env_vars(self, agent):
@@ -83,7 +83,7 @@ class TestClaudeCodeAgent:
 
     def test_get_command_basic(self, agent):
         """Test basic command generation."""
-        agent.command_path = "/usr/local/bin/claude"
+        agent._command_path = "/usr/local/bin/claude"
 
         with patch.dict(os.environ, {}, clear=True):
             command = agent.get_command()
@@ -102,7 +102,7 @@ class TestClaudeCodeAgent:
         with patch.dict(os.environ, {}, clear=True):
             command = agent.get_command()
 
-        assert agent.command_path == "/usr/bin/claude"
+        assert agent._command_path == "/usr/bin/claude"
         assert command[0] == "/usr/bin/claude"
 
     @patch("shutil.which")
@@ -115,7 +115,7 @@ class TestClaudeCodeAgent:
 
     def test_get_command_with_issue_number(self, agent):
         """Test command generation with issue number in environment."""
-        agent.command_path = "/usr/local/bin/claude"
+        agent._command_path = "/usr/local/bin/claude"
 
         with patch.dict(os.environ, {"COCODE_ISSUE_NUMBER": "123"}):
             command = agent.get_command()
@@ -130,7 +130,7 @@ class TestClaudeCodeAgent:
 
     def test_get_command_with_ready_marker(self, agent):
         """Test command generation with ready marker in environment."""
-        agent.command_path = "/usr/local/bin/claude"
+        agent._command_path = "/usr/local/bin/claude"
 
         with patch.dict(os.environ, {"COCODE_READY_MARKER": "ready for review"}):
             command = agent.get_command()
@@ -145,7 +145,7 @@ class TestClaudeCodeAgent:
 
     def test_get_command_full(self, agent):
         """Test command generation with all environment variables."""
-        agent.command_path = "/usr/local/bin/claude"
+        agent._command_path = "/usr/local/bin/claude"
 
         test_env = {
             "COCODE_ISSUE_NUMBER": "456",

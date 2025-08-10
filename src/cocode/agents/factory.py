@@ -14,7 +14,7 @@ import shutil
 import subprocess
 from typing import Any, cast
 
-from cocode.agents.base import Agent
+from cocode.agents.base import Agent, AgentConfig
 from cocode.agents.claude_code import ClaudeCodeAgent
 from cocode.agents.codex_cli import CodexCliAgent
 from cocode.agents.default import GitBasedAgent
@@ -51,7 +51,8 @@ class AgentFactory:
                            a new instance will be created.
         """
         self.config_manager = config_manager or ConfigManager()
-        # Use Any for the agent classes since they have different signatures
+        # Use Any for agent classes since they have different constructor signatures
+        # ClaudeCodeAgent and CodexCliAgent take just config, while GitBasedAgent takes name and config
         self._agent_registry: dict[str, Any] = {
             "claude-code": ClaudeCodeAgent,
             "codex-cli": CodexCliAgent,
@@ -225,7 +226,6 @@ class AgentFactory:
         Returns:
             Agent instance
         """
-        from cocode.agents.base import AgentConfig
 
         # Create AgentConfig from dictionary
         agent_config = AgentConfig.from_dict(config)

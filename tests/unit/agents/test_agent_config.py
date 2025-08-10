@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from unittest.mock import Mock, patch
 
 from cocode.agents.base import AgentConfig
@@ -150,22 +151,32 @@ class TestCodexCliAgentConfig:
 
     @patch("cocode.agents.codex_cli.shutil.which")
     @patch("cocode.agents.codex_cli.subprocess.run")
-    @patch("cocode.agents.codex_cli.os.environ")
-    def test_codex_cli_custom_args_override(self, mock_environ, mock_run, mock_which):
+    @patch("pathlib.Path.exists")
+    def test_codex_cli_custom_args_override(self, mock_exists, mock_run, mock_which):
         """Test CodexCliAgent custom args override default command building."""
         mock_which.return_value = "/usr/bin/codex"
         # Mock help output to indicate standard CLI style
         mock_run.return_value = Mock(returncode=0, stdout="fix --issue-file")
-        mock_environ.get.return_value = None  # No env vars set
+        # Mock that issue file exists
+        mock_exists.return_value = True
 
         config = AgentConfig(name="codex-cli", command="codex", args=["analyze", "--quick"])
 
         agent = CodexCliAgent(config)
         agent.validate_environment()
 
-        command = agent.get_command()
-        # Custom args should completely replace default command
-        assert command == ["/usr/bin/codex", "analyze", "--quick"]
+        # Set required environment variables for strict validation
+        with patch.dict(
+            os.environ,
+            {
+                "COCODE_ISSUE_BODY_FILE": "/tmp/issue.txt",
+                "COCODE_ISSUE_NUMBER": "123",
+                "COCODE_READY_MARKER": "cocode ready for check",
+            },
+        ):
+            command = agent.get_command()
+            # Custom args should completely replace default command
+            assert command == ["/usr/bin/codex", "analyze", "--quick"]
 
 
 class TestGitBasedAgentConfig:

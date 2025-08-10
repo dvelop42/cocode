@@ -21,8 +21,8 @@ class TestCodexCliAgent:
     def test_agent_initialization(self, agent):
         """Test agent initializes with correct name and attributes."""
         assert agent.name == "codex-cli"
-        assert agent.command_path is None
-        assert agent.cli_style is None
+        assert agent._command_path is None
+        assert agent._cli_style is None
 
     @patch("shutil.which")
     @patch.object(CodexCliAgent, "_detect_cli_style")
@@ -34,8 +34,8 @@ class TestCodexCliAgent:
         result = agent.validate_environment()
 
         assert result is True
-        assert agent.command_path == "/usr/local/bin/codex"
-        assert agent.cli_style == "standard"
+        assert agent._command_path == "/usr/local/bin/codex"
+        assert agent._cli_style == "standard"
         mock_which.assert_called_once_with("codex")
         mock_detect.assert_called_once()
 
@@ -47,13 +47,13 @@ class TestCodexCliAgent:
         result = agent.validate_environment()
 
         assert result is False
-        assert agent.command_path is None
+        assert agent._command_path is None
         mock_which.assert_called_once_with("codex")
 
     @patch("subprocess.run")
     def test_detect_cli_style_standard(self, mock_run, agent):
         """Test CLI style detection for standard interface."""
-        agent.command_path = "/usr/local/bin/codex"
+        agent._command_path = "/usr/local/bin/codex"
         mock_result = MagicMock()
         mock_result.stdout = "Commands:\n  fix    Fix issues\n  --issue-file    Specify issue file"
         mock_run.return_value = mock_result
@@ -68,7 +68,7 @@ class TestCodexCliAgent:
     @patch("subprocess.run")
     def test_detect_cli_style_env_based(self, mock_run, agent):
         """Test CLI style detection for environment-based interface."""
-        agent.command_path = "/usr/local/bin/codex"
+        agent._command_path = "/usr/local/bin/codex"
         mock_result = MagicMock()
         mock_result.stdout = "Codex CLI v1.0\nUsage: codex [options]"
         mock_run.return_value = mock_result
@@ -80,7 +80,7 @@ class TestCodexCliAgent:
     @patch("subprocess.run")
     def test_detect_cli_style_timeout(self, mock_run, agent):
         """Test CLI style detection handles timeout gracefully."""
-        agent.command_path = "/usr/local/bin/codex"
+        agent._command_path = "/usr/local/bin/codex"
         mock_run.side_effect = subprocess.TimeoutExpired(cmd=["codex"], timeout=5)
 
         style = agent._detect_cli_style()
@@ -89,7 +89,7 @@ class TestCodexCliAgent:
 
     def test_detect_cli_style_no_command(self, agent):
         """Test CLI style detection when command path is not set."""
-        agent.command_path = None
+        agent._command_path = None
 
         style = agent._detect_cli_style()
 
@@ -109,9 +109,14 @@ class TestCodexCliAgent:
         mock_exists.return_value = True
 
         with patch.dict(
-            os.environ, {"COCODE_ISSUE_BODY_FILE": "/tmp/issue.txt", "COCODE_ISSUE_NUMBER": "123"}
+            os.environ,
+            {
+                "COCODE_ISSUE_BODY_FILE": "/tmp/issue.txt",
+                "COCODE_ISSUE_NUMBER": "123",
+                "COCODE_READY_MARKER": "cocode ready for check",
+            },
         ):
-            # Should not raise any exceptions or warnings
+            # Should not raise any exceptions
             agent._validate_environment_variables()
 
     @patch("pathlib.Path.exists")
@@ -120,22 +125,34 @@ class TestCodexCliAgent:
         mock_exists.return_value = False
 
         with patch.dict(
-            os.environ, {"COCODE_ISSUE_BODY_FILE": "/tmp/missing.txt", "COCODE_ISSUE_NUMBER": "123"}
+            os.environ,
+            {
+                "COCODE_ISSUE_BODY_FILE": "/tmp/missing.txt",
+                "COCODE_ISSUE_NUMBER": "123",
+                "COCODE_READY_MARKER": "cocode ready for check",
+            },
         ):
-            with patch("cocode.agents.codex_cli.logger.warning") as mock_warning:
+            # Should raise RuntimeError with stricter validation
+            with pytest.raises(RuntimeError, match="Issue file does not exist: /tmp/missing.txt"):
                 agent._validate_environment_variables()
-                mock_warning.assert_called_with("Issue file does not exist: /tmp/missing.txt")
 
     def test_validate_environment_variables_invalid_number(self, agent):
         """Test environment variable validation with non-numeric issue number."""
-        with patch.dict(os.environ, {"COCODE_ISSUE_NUMBER": "abc"}):
-            with patch("cocode.agents.codex_cli.logger.warning") as mock_warning:
+        with patch.dict(
+            os.environ,
+            {
+                "COCODE_ISSUE_NUMBER": "abc",
+                "COCODE_ISSUE_BODY_FILE": "/tmp/issue.txt",
+                "COCODE_READY_MARKER": "cocode ready for check",
+            },
+        ):
+            # Should raise RuntimeError with stricter validation
+            with pytest.raises(RuntimeError, match="Issue number is not numeric: abc"):
                 agent._validate_environment_variables()
-                mock_warning.assert_called_with("Issue number is not numeric: abc")
 
     def test_build_standard_command(self, agent):
         """Test building command for standard CLI interface."""
-        agent.command_path = "/usr/local/bin/codex"
+        agent._command_path = "/usr/local/bin/codex"
 
         with patch.dict(
             os.environ,
@@ -161,7 +178,7 @@ class TestCodexCliAgent:
 
     def test_build_standard_command_minimal(self, agent):
         """Test building command with minimal environment variables."""
-        agent.command_path = "/usr/local/bin/codex"
+        agent._command_path = "/usr/local/bin/codex"
 
         with patch.dict(os.environ, {}, clear=True):
             command = agent._build_standard_command()
@@ -170,7 +187,7 @@ class TestCodexCliAgent:
 
     def test_build_env_based_command(self, agent):
         """Test building command for environment-based CLI."""
-        agent.command_path = "/usr/local/bin/codex"
+        agent._command_path = "/usr/local/bin/codex"
 
         command = agent._build_env_based_command()
 
@@ -181,8 +198,8 @@ class TestCodexCliAgent:
     @patch.object(CodexCliAgent, "_build_standard_command")
     def test_get_command_standard_style(self, mock_build, mock_detect, mock_validate, agent):
         """Test get_command with standard CLI style."""
-        agent.command_path = "/usr/local/bin/codex"
-        agent.cli_style = "standard"
+        agent._command_path = "/usr/local/bin/codex"
+        agent._cli_style = "standard"
         mock_build.return_value = ["codex", "fix"]
 
         command = agent.get_command()
@@ -195,8 +212,8 @@ class TestCodexCliAgent:
     @patch.object(CodexCliAgent, "_build_env_based_command")
     def test_get_command_env_based_style(self, mock_build, mock_validate, agent):
         """Test get_command with environment-based CLI style."""
-        agent.command_path = "/usr/local/bin/codex"
-        agent.cli_style = "env-based"
+        agent._command_path = "/usr/local/bin/codex"
+        agent._cli_style = "env-based"
         mock_build.return_value = ["codex"]
 
         command = agent.get_command()
@@ -217,7 +234,7 @@ class TestCodexCliAgent:
                 mock_build.return_value = ["codex"]
                 command = agent.get_command()
 
-        assert agent.command_path == "/usr/bin/codex"
+        assert agent._command_path == "/usr/bin/codex"
         assert command == ["codex"]
 
     @patch("shutil.which")

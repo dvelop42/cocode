@@ -44,22 +44,25 @@ class ClaudeCodeAgent(GitBasedAgent):
         if config is None:
             config = AgentConfig(name="claude-code", command="claude")
         super().__init__(config.name, config)
-        self.command_path: str | None = None
+        self._command_path: str | None = None  # Cache for the resolved command path
 
     def validate_environment(self) -> bool:
         """Check if Claude Code CLI is available."""
-        # Use command from config if provided, otherwise default to 'claude'
-        command = self.config.command or "claude"
-        self.command_path = shutil.which(command)
+        # Only resolve the command path once
+        if self._command_path is None:
+            # Use command from config if provided, otherwise default to 'claude'
+            command = self.config.command or "claude"
+            self._command_path = shutil.which(command)
 
-        if not self.command_path:
-            logger.warning(
-                f"Claude Code CLI '{command}' not found. Install from: https://github.com/anthropics/claude-code"
-            )
-            return False
+            if not self._command_path:
+                logger.warning(
+                    f"Claude Code CLI '{command}' not found. Install from: https://github.com/anthropics/claude-code"
+                )
+                return False
 
-        logger.debug(f"Found Claude Code at: {self.command_path}")
-        return True
+            logger.debug(f"Found Claude Code at: {self._command_path}")
+
+        return self._command_path is not None
 
     def prepare_environment(
         self, worktree_path: Path, issue_number: int, issue_body: str
@@ -88,18 +91,20 @@ class ClaudeCodeAgent(GitBasedAgent):
         The exact command structure depends on Claude Code's CLI interface.
         We'll use a generic approach that should work with most agent CLIs.
         """
-        if not self.command_path:
-            # Fallback if validate wasn't called
-            cmd_name = self.config.command or "claude"
-            self.command_path = shutil.which(cmd_name)
-            if not self.command_path:
+        # Use cached command path if available, otherwise resolve it
+        if not self._command_path:
+            # This ensures we only call shutil.which() once
+            if not self.validate_environment():
+                cmd_name = self.config.command or "claude"
                 raise RuntimeError(
                     f"Claude CLI '{cmd_name}' not found. Please install Claude Code from: "
                     "https://github.com/anthropics/claude-code or verify it's in your PATH"
                 )
 
         # Build command - start with the executable
-        command: list[str] = [self.command_path]
+        # Type assertion is safe here because we checked _command_path is not None above
+        assert self._command_path is not None
+        command: list[str] = [self._command_path]
 
         # Add custom args from config if provided, otherwise use defaults
         if self.config.args:
