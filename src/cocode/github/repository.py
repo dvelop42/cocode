@@ -247,9 +247,11 @@ class RepositoryMetadataFetcher:
                 ssh_url=data.get("sshUrl"),
                 created_at=data.get("createdAt"),
                 updated_at=data.get("updatedAt"),
-                language=data.get("primaryLanguage", {}).get("name")
-                if data.get("primaryLanguage")
-                else None,
+                language=(
+                    data.get("primaryLanguage", {}).get("name")
+                    if data.get("primaryLanguage")
+                    else None
+                ),
                 topics=[
                     topic.get("name", "")
                     for topic in (data.get("repositoryTopics") or [])
