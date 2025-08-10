@@ -99,10 +99,7 @@ class TestWorktreeSync:
     @patch("subprocess.run")
     def test_check_divergence_up_to_date(self, mock_run, sync_manager, tmp_path):
         """Test checking divergence - up to date."""
-        mock_run.side_effect = [
-            Mock(stdout="main\n", returncode=0),  # current branch
-            Mock(stdout="0\t0\n", returncode=0),  # rev-list
-        ]
+        mock_run.return_value = Mock(stdout="0\t0\n", returncode=0)
 
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -113,10 +110,7 @@ class TestWorktreeSync:
     @patch("subprocess.run")
     def test_check_divergence_behind(self, mock_run, sync_manager, tmp_path):
         """Test checking divergence - behind."""
-        mock_run.side_effect = [
-            Mock(stdout="main\n", returncode=0),  # current branch
-            Mock(stdout="3\t0\n", returncode=0),  # rev-list
-        ]
+        mock_run.return_value = Mock(stdout="3\t0\n", returncode=0)
 
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -127,10 +121,7 @@ class TestWorktreeSync:
     @patch("subprocess.run")
     def test_check_divergence_ahead(self, mock_run, sync_manager, tmp_path):
         """Test checking divergence - ahead."""
-        mock_run.side_effect = [
-            Mock(stdout="main\n", returncode=0),  # current branch
-            Mock(stdout="0\t2\n", returncode=0),  # rev-list
-        ]
+        mock_run.return_value = Mock(stdout="0\t2\n", returncode=0)
 
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
@@ -141,10 +132,7 @@ class TestWorktreeSync:
     @patch("subprocess.run")
     def test_check_divergence_diverged(self, mock_run, sync_manager, tmp_path):
         """Test checking divergence - diverged."""
-        mock_run.side_effect = [
-            Mock(stdout="main\n", returncode=0),  # current branch
-            Mock(stdout="3\t2\n", returncode=0),  # rev-list
-        ]
+        mock_run.return_value = Mock(stdout="3\t2\n", returncode=0)
 
         worktree_path = tmp_path / "worktree"
         worktree_path.mkdir()
