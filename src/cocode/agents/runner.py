@@ -6,8 +6,8 @@ to handle issue body temp files and cleanup.
 
 import logging
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 from cocode.agents.base import Agent, AgentStatus
 from cocode.utils.exit_codes import ExitCode
@@ -36,8 +36,8 @@ class AgentRunner:
         issue_body: str,
         issue_url: str,
         timeout: int = 900,
-        stdout_callback: Optional[Callable[[str], None]] = None,
-        stderr_callback: Optional[Callable[[str], None]] = None,
+        stdout_callback: Callable[[str], None] | None = None,
+        stderr_callback: Callable[[str], None] | None = None,
     ) -> AgentStatus:
         """Run an agent with proper environment setup and cleanup.
 
@@ -75,12 +75,12 @@ class AgentRunner:
 
             # Collect output for error messages
             output_lines = []
-            
+
             def collect_output(line: str) -> None:
                 output_lines.append(line)
                 if stdout_callback:
                     stdout_callback(line)
-            
+
             def handle_stderr(line: str) -> None:
                 output_lines.append(f"[stderr] {line}")
                 if stderr_callback:
@@ -93,7 +93,7 @@ class AgentRunner:
                 env=env,
                 timeout=timeout,
             )
-            
+
             try:
                 exit_code = streaming_proc.run(
                     stdout_callback=collect_output,

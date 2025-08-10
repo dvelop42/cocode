@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -87,7 +86,7 @@ def test_run_agent_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         assert status.branch.endswith("42-dummy")
         # temp file should have been cleaned up
         assert fake_mgr.cleaned and fake_mgr.cleaned[0] in fake_mgr.written
-        
+
         # Verify StreamingSubprocess was called with correct parameters
         mock_streaming.assert_called_once()
         assert mock_streaming.call_args.kwargs["command"] == agent.get_command()
@@ -101,14 +100,15 @@ def test_run_agent_env_filtering(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 
     # Capture the environment passed to StreamingSubprocess
     captured_env = {}
-    
+
     with patch("cocode.agents.runner.StreamingSubprocess") as mock_streaming:
+
         def capture_env(*args, **kwargs):
             captured_env.update(kwargs.get("env", {}))
             mock = MagicMock()
             mock.run.return_value = 0
             return mock
-        
+
         mock_streaming.side_effect = capture_env
 
         runner = AgentRunner()
@@ -184,16 +184,16 @@ def test_run_agent_with_streaming_callbacks(monkeypatch: pytest.MonkeyPatch, tmp
 
     stdout_lines = []
     stderr_lines = []
-    
+
     def stdout_callback(line: str) -> None:
         stdout_lines.append(line)
-    
+
     def stderr_callback(line: str) -> None:
         stderr_lines.append(line)
 
     with patch("cocode.agents.runner.StreamingSubprocess") as mock_streaming:
         mock_instance = MagicMock()
-        
+
         # Simulate the streaming subprocess calling the callbacks
         def simulate_run(stdout_callback=None, stderr_callback=None):
             if stdout_callback:
@@ -202,7 +202,7 @@ def test_run_agent_with_streaming_callbacks(monkeypatch: pytest.MonkeyPatch, tmp
             if stderr_callback:
                 stderr_callback("error1")
             return 0
-        
+
         mock_instance.run.side_effect = simulate_run
         mock_streaming.return_value = mock_instance
 
