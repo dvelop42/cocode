@@ -6,15 +6,17 @@ results.
 """
 
 import logging
+import subprocess
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from cocode.agents.base import Agent, AgentStatus
 from cocode.agents.lifecycle import AgentLifecycleManager, AgentState
-from cocode.git.worktree import WorktreeManager
+from cocode.git.worktree import WorktreeError, WorktreeManager
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,13 @@ class ExecutionResult:
 class ConcurrentAgentExecutor:
     """Executes multiple agents concurrently to solve GitHub issues."""
 
+    # Resource limit constants
+    MIN_CONCURRENT_AGENTS = 1
+    MAX_CONCURRENT_AGENTS = 20
+    MIN_TIMEOUT = 60
+    MAX_TIMEOUT = 3600
+    MAX_ISSUE_NUMBER = 999999
+
     def __init__(
         self,
         repo_path: Path,
@@ -48,8 +57,23 @@ class ConcurrentAgentExecutor:
             repo_path: Path to the git repository
             max_concurrent_agents: Maximum number of agents to run concurrently
             agent_timeout: Timeout for each agent in seconds (default: 15 minutes)
+
+        Raises:
+            ValueError: If parameters are out of valid ranges
         """
         self.repo_path = repo_path
+
+        # Validate parameters
+        if not (self.MIN_CONCURRENT_AGENTS <= max_concurrent_agents <= self.MAX_CONCURRENT_AGENTS):
+            raise ValueError(
+                f"max_concurrent_agents must be between {self.MIN_CONCURRENT_AGENTS} "
+                f"and {self.MAX_CONCURRENT_AGENTS}"
+            )
+        if not (self.MIN_TIMEOUT <= agent_timeout <= self.MAX_TIMEOUT):
+            raise ValueError(
+                f"agent_timeout must be between {self.MIN_TIMEOUT} and {self.MAX_TIMEOUT}"
+            )
+
         self.max_concurrent_agents = max_concurrent_agents
         self.agent_timeout = agent_timeout
         self.lifecycle_manager = AgentLifecycleManager(
@@ -60,6 +84,63 @@ class ConcurrentAgentExecutor:
         self._completion_events: dict[str, threading.Event] = {}
         self._completion_statuses: dict[str, AgentStatus] = {}
         self._lock = threading.Lock()
+        self._cleanup_on_exit = True
+
+    def __enter__(self) -> "ConcurrentAgentExecutor":
+        """Enter context manager."""
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> None:
+        """Exit context manager and clean up resources."""
+        if self._cleanup_on_exit:
+            self.stop_all_agents(force=True)
+            self._cleanup_resources()
+
+    def _cleanup_resources(self) -> None:
+        """Clean up internal resources."""
+        with self._lock:
+            self._completion_events.clear()
+            self._completion_statuses.clear()
+
+    def _validate_inputs(
+        self,
+        agents: list[Agent],
+        issue_number: int,
+        issue_body: str,
+        issue_url: str,
+    ) -> None:
+        """Validate execution inputs.
+
+        Args:
+            agents: List of agents to validate
+            issue_number: GitHub issue number
+            issue_body: Issue body content
+            issue_url: URL to the GitHub issue
+
+        Raises:
+            ValueError: If inputs are invalid
+        """
+        if not agents:
+            raise ValueError("Agent list cannot be empty")
+
+        agent_names = [agent.name for agent in agents]
+        if len(set(agent_names)) != len(agent_names):
+            duplicates = [name for name in agent_names if agent_names.count(name) > 1]
+            raise ValueError(f"Duplicate agent names not allowed: {duplicates}")
+
+        if not (1 <= issue_number <= self.MAX_ISSUE_NUMBER):
+            raise ValueError(f"Invalid issue number: {issue_number}")
+
+        if not issue_body:
+            raise ValueError("Issue body cannot be empty")
+
+        if not issue_url:
+            raise ValueError("Issue URL cannot be empty")
 
     def execute_agents(
         self,
@@ -84,7 +165,13 @@ class ConcurrentAgentExecutor:
 
         Returns:
             ExecutionResult with status and results from all agents
+
+        Raises:
+            ValueError: If inputs are invalid
         """
+        # Validate inputs
+        self._validate_inputs(agents, issue_number, issue_body, issue_url)
+
         start_time = time.time()
         result = ExecutionResult(issue_number=issue_number, issue_url=issue_url)
 
@@ -97,6 +184,43 @@ class ConcurrentAgentExecutor:
             return result
 
         # Register agents with lifecycle manager
+        self._register_agents(agents, worktrees)
+
+        # Execute agents with scheduling
+        self._execute_with_scheduling(
+            agents=agents,
+            issue_number=issue_number,
+            issue_body=issue_body,
+            issue_url=issue_url,
+            result=result,
+            progress_callback=progress_callback,
+            output_callback=output_callback,
+        )
+
+        # Collect results using batch operation
+        self._collect_results(agents, result)
+
+        result.execution_time = time.time() - start_time
+        logger.info(
+            f"Execution completed in {result.execution_time:.1f}s: "
+            f"{len(result.successful_agents)} successful, "
+            f"{len(result.failed_agents)} failed, "
+            f"{len(result.ready_agents)} ready"
+        )
+
+        return result
+
+    def _register_agents(
+        self,
+        agents: list[Agent],
+        worktrees: dict[str, Path],
+    ) -> None:
+        """Register agents with lifecycle manager.
+
+        Args:
+            agents: List of agents to register
+            worktrees: Dictionary mapping agent names to worktree paths
+        """
         for agent in agents:
             worktree_path = worktrees.get(agent.name)
             if worktree_path:
@@ -107,107 +231,226 @@ class ConcurrentAgentExecutor:
                 )
                 self._completion_events[agent.name] = threading.Event()
 
-        # Start agents with simple scheduling respecting concurrency limits
+    def _execute_with_scheduling(
+        self,
+        agents: list[Agent],
+        issue_number: int,
+        issue_body: str,
+        issue_url: str,
+        result: ExecutionResult,
+        progress_callback: Callable[[str, str], None] | None,
+        output_callback: Callable[[str, str, str], None] | None,
+    ) -> None:
+        """Execute agents with scheduling respecting concurrency limits.
+
+        Args:
+            agents: List of agents to execute
+            issue_number: GitHub issue number
+            issue_body: Issue body content
+            issue_url: URL to the GitHub issue
+            result: ExecutionResult to populate
+            progress_callback: Optional progress callback
+            output_callback: Optional output callback
+        """
         logger.info(
             f"Scheduling {len(agents)} agents (max concurrent: {self.max_concurrent_agents})"
         )
+
         pending = list(agents)  # not yet started
         started: set[str] = set()
         completed: set[str] = set()
 
-        # Safety deadline: prevent infinite waits (allow some overhead for all batches)
+        # Safety deadline: prevent infinite waits
         batches = max(
             1, (len(agents) + self.max_concurrent_agents - 1) // self.max_concurrent_agents
         )
         safety_deadline = time.time() + max(self.agent_timeout, 10) * batches
 
-        def try_start(agent: Agent) -> bool:
-            if progress_callback:
-                progress_callback(agent.name, "starting")
+        # Exponential backoff parameters
+        attempt = 0
+        max_sleep = 0.5
 
-            def make_stdout_callback(agent_name: str) -> Callable[[str], None] | None:
-                if output_callback:
-                    return lambda line: output_callback(agent_name, "stdout", line)
-                return None
-
-            def make_stderr_callback(agent_name: str) -> Callable[[str], None] | None:
-                if output_callback:
-                    return lambda line: output_callback(agent_name, "stderr", line)
-                return None
-
-            def make_completion_callback(agent_name: str) -> Callable[[AgentStatus], None]:
-                return lambda status: self._handle_completion(agent_name, status, progress_callback)
-
-            return self.lifecycle_manager.start_agent(
-                agent_name=agent.name,
+        while len(completed) < len(agents):
+            # Try to schedule next batch
+            made_progress = self._schedule_next_batch(
+                pending=pending,
+                started=started,
                 issue_number=issue_number,
                 issue_body=issue_body,
                 issue_url=issue_url,
-                stdout_callback=make_stdout_callback(agent.name),
-                stderr_callback=make_stderr_callback(agent.name),
-                completion_callback=make_completion_callback(agent.name),
+                progress_callback=progress_callback,
+                output_callback=output_callback,
             )
 
-        while len(completed) < len(agents):
-            # Attempt to start as many pending agents as possible
-            made_progress = False
-            for agent in list(pending):
-                success = try_start(agent)
-                if success:
-                    started.add(agent.name)
-                    pending.remove(agent)
-                    made_progress = True
-                else:
-                    # Likely due to concurrency limit; will retry after some complete
-                    continue
-
-            # Check for completions among started agents
-            for name in list(started):
-                if name in self._completion_events and self._completion_events[name].is_set():
-                    completed.add(name)
-                    started.remove(name)
+            # Check for completions
+            newly_completed = self._check_completions(started)
+            for name in newly_completed:
+                completed.add(name)
+                started.remove(name)
 
             if len(completed) >= len(agents):
                 break
 
+            # Handle stuck state
             if not made_progress and not started and pending:
-                # Could not start anything and nothing running; mark remaining as failed to avoid hang
-                logger.error("Could not start any agents; marking remaining as failed")
-                for agent in pending:
-                    result.failed_agents.append(agent.name)
-                    result.errors[agent.name] = "Failed to start agent"
-                    # Unblock waiters
-                    if agent.name in self._completion_events:
-                        self._completion_events[agent.name].set()
-                    completed.add(agent.name)
-                pending.clear()
+                self._handle_stuck_agents(pending, result, completed)
                 break
 
-            # Safety timeout
+            # Check safety timeout
             if time.time() > safety_deadline:
-                logger.error(
-                    "Execution exceeded safety deadline; marking unfinished agents as failed"
-                )
-                # Mark any not yet completed as failed
-                for agent in pending:
-                    result.failed_agents.append(agent.name)
-                    result.errors[agent.name] = "Execution timed out before start"
-                    if agent.name in self._completion_events:
-                        self._completion_events[agent.name].set()
-                    completed.add(agent.name)
-                for _name in list(started):
-                    # do not forcibly fail running ones; will be tallied by lifecycle status
-                    pass
+                self._handle_timeout(pending, result, completed)
                 break
 
-            # Small sleep to avoid busy loop
-            time.sleep(0.05)
+            # Exponential backoff sleep
+            if not made_progress and not newly_completed:
+                attempt += 1
+                sleep_time = min(0.01 * (1.1**attempt), max_sleep)
+            else:
+                attempt = 0
+                sleep_time = 0.01
 
-        # Collect results
+            time.sleep(sleep_time)
+
+    def _schedule_next_batch(
+        self,
+        pending: list[Agent],
+        started: set[str],
+        issue_number: int,
+        issue_body: str,
+        issue_url: str,
+        progress_callback: Callable[[str, str], None] | None,
+        output_callback: Callable[[str, str, str], None] | None,
+    ) -> bool:
+        """Schedule next batch of agents respecting concurrency limits.
+
+        Returns:
+            True if any agents were started, False otherwise
+        """
+        made_progress = False
+
+        for agent in list(pending):
+            if len(started) >= self.max_concurrent_agents:
+                break
+
+            success = self._start_agent(
+                agent=agent,
+                issue_number=issue_number,
+                issue_body=issue_body,
+                issue_url=issue_url,
+                progress_callback=progress_callback,
+                output_callback=output_callback,
+            )
+
+            if success:
+                started.add(agent.name)
+                pending.remove(agent)
+                made_progress = True
+
+        return made_progress
+
+    def _start_agent(
+        self,
+        agent: Agent,
+        issue_number: int,
+        issue_body: str,
+        issue_url: str,
+        progress_callback: Callable[[str, str], None] | None,
+        output_callback: Callable[[str, str, str], None] | None,
+    ) -> bool:
+        """Start a single agent.
+
+        Returns:
+            True if agent started successfully, False otherwise
+        """
+        if progress_callback:
+            progress_callback(agent.name, "starting")
+
+        def make_stdout_callback(agent_name: str) -> Callable[[str], None] | None:
+            if output_callback:
+                return lambda line: output_callback(agent_name, "stdout", line)
+            return None
+
+        def make_stderr_callback(agent_name: str) -> Callable[[str], None] | None:
+            if output_callback:
+                return lambda line: output_callback(agent_name, "stderr", line)
+            return None
+
+        def make_completion_callback(agent_name: str) -> Callable[[AgentStatus], None]:
+            return lambda status: self._handle_completion(agent_name, status, progress_callback)
+
+        return self.lifecycle_manager.start_agent(
+            agent_name=agent.name,
+            issue_number=issue_number,
+            issue_body=issue_body,
+            issue_url=issue_url,
+            stdout_callback=make_stdout_callback(agent.name),
+            stderr_callback=make_stderr_callback(agent.name),
+            completion_callback=make_completion_callback(agent.name),
+        )
+
+    def _check_completions(self, started: set[str]) -> set[str]:
+        """Check for completed agents.
+
+        Args:
+            started: Set of started agent names
+
+        Returns:
+            Set of newly completed agent names
+        """
+        completed = set()
+        for name in list(started):
+            if name in self._completion_events and self._completion_events[name].is_set():
+                completed.add(name)
+        return completed
+
+    def _handle_stuck_agents(
+        self,
+        pending: list[Agent],
+        result: ExecutionResult,
+        completed: set[str],
+    ) -> None:
+        """Handle agents that couldn't be started."""
+        logger.error("Could not start any agents; marking remaining as failed")
+        for agent in pending:
+            result.failed_agents.append(agent.name)
+            result.errors[agent.name] = "Failed to start agent"
+            if agent.name in self._completion_events:
+                self._completion_events[agent.name].set()
+            completed.add(agent.name)
+        pending.clear()
+
+    def _handle_timeout(
+        self,
+        pending: list[Agent],
+        result: ExecutionResult,
+        completed: set[str],
+    ) -> None:
+        """Handle execution timeout."""
+        logger.error("Execution exceeded safety deadline; marking unfinished agents as failed")
+        for agent in pending:
+            result.failed_agents.append(agent.name)
+            result.errors[agent.name] = "Execution timed out before start"
+            if agent.name in self._completion_events:
+                self._completion_events[agent.name].set()
+            completed.add(agent.name)
+
+    def _collect_results(
+        self,
+        agents: list[Agent],
+        result: ExecutionResult,
+    ) -> None:
+        """Collect results from all agents using batch operations.
+
+        Args:
+            agents: List of agents
+            result: ExecutionResult to populate
+        """
+        # Get all agent statuses in batch
+        all_statuses = self._get_all_agent_statuses()
+
         for agent in agents:
-            agent_info = self.lifecycle_manager.get_agent_info(agent.name)
-            if agent_info and agent_info.status:
-                status = agent_info.status
+            status = all_statuses.get(agent.name)
+            if status:
                 result.agent_results[agent.name] = status
 
                 if status.ready:
@@ -220,7 +463,7 @@ class ConcurrentAgentExecutor:
                     if status.error_message:
                         result.errors[agent.name] = status.error_message
             else:
-                # If no status (e.g., never started), ensure it's marked failed
+                # If no status, ensure it's marked failed
                 if (
                     agent.name not in result.agent_results
                     and agent.name not in result.failed_agents
@@ -228,15 +471,20 @@ class ConcurrentAgentExecutor:
                     result.failed_agents.append(agent.name)
                     result.errors[agent.name] = "No status available"
 
-        result.execution_time = time.time() - start_time
-        logger.info(
-            f"Execution completed in {result.execution_time:.1f}s: "
-            f"{len(result.successful_agents)} successful, "
-            f"{len(result.failed_agents)} failed, "
-            f"{len(result.ready_agents)} ready"
-        )
+    def _get_all_agent_statuses(self) -> dict[str, AgentStatus]:
+        """Get statuses for all registered agents in batch.
 
-        return result
+        Returns:
+            Dictionary mapping agent names to their statuses
+        """
+        statuses = {}
+        all_agents = self.lifecycle_manager.get_all_agents()
+
+        for agent_name, info in all_agents.items():
+            if info.status:
+                statuses[agent_name] = info.status
+
+        return statuses
 
     def _prepare_worktrees(
         self, agents: list[Agent], issue_number: int, base_branch: str
@@ -264,7 +512,7 @@ class ConcurrentAgentExecutor:
                 )
                 worktrees[agent.name] = worktree_path
                 logger.info(f"Created worktree for {agent.name} at {worktree_path}")
-            except Exception as e:
+            except (WorktreeError, subprocess.CalledProcessError, OSError) as e:
                 logger.error(f"Failed to create worktree for {agent.name}: {e}")
 
         return worktrees
@@ -357,7 +605,7 @@ class ConcurrentAgentExecutor:
             try:
                 self.worktree_manager.remove_worktree(worktree_path)
                 logger.info(f"Removed worktree for {agent.name}")
-            except Exception as e:
+            except (WorktreeError, subprocess.CalledProcessError, OSError) as e:
                 logger.warning(f"Failed to remove worktree for {agent.name}: {e}")
 
     def get_agent_status(self, agent_name: str) -> AgentStatus | None:
