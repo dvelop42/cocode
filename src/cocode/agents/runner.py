@@ -165,9 +165,19 @@ class AgentRunner:
         SAFE_PATH_DIRS = ["/usr/bin", "/bin", "/usr/local/bin", "/opt/homebrew/bin"]
         safe_path = ":".join(SAFE_PATH_DIRS)
 
+        # Allowlist prefixes for agent auth and config vars (minimal, explicit)
+        AGENT_ENV_PREFIXES = (
+            "CLAUDE_",
+            "ANTHROPIC_",
+            "CODEX_",
+            "OPENAI_",
+        )
+
         # Filter existing environment
         filtered_env = {
-            k: v for k, v in os.environ.items() if k in ALLOWED_ENV_VARS or k.startswith("COCODE_")
+            k: v
+            for k, v in os.environ.items()
+            if k in ALLOWED_ENV_VARS or k.startswith("COCODE_") or k.startswith(AGENT_ENV_PREFIXES)
         }
 
         # Add cocode-specific variables

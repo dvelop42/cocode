@@ -258,3 +258,70 @@ class TestRunWithStreaming:
         assert exit_code == 0
         assert stdout_lines == ["hello"]
         assert stderr_lines == []
+
+
+def test_stream_output_exception_and_cleanup():
+    """_stream_output handles exceptions and closes the pipe."""
+    from cocode.utils.subprocess import StreamingSubprocess
+
+    class FakePipe:
+        def __init__(self):
+            self.closed = False
+
+        def __iter__(self):
+            raise RuntimeError("read error")
+
+        def close(self):
+            self.closed = True
+
+    runner = StreamingSubprocess(["echo", "x"])
+    pipe = FakePipe()
+    # Should not raise; should close the pipe
+    runner._stream_output(pipe, "stdout", None)
+    assert pipe.closed is True
+
+
+def test_cleanup_kill_path(monkeypatch):
+    """_cleanup terminates, then kills, and closes pipes."""
+    import subprocess as sp
+
+    from cocode.utils.subprocess import StreamingSubprocess
+
+    class FakePipe:
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    class FakeProc:
+        def __init__(self):
+            self._polled = None
+            self.stdout = FakePipe()
+            self.stderr = FakePipe()
+            self._wait_calls = 0
+
+        def poll(self):
+            return None  # still running
+
+        def terminate(self):
+            pass
+
+        def wait(self, timeout=None):
+            # First wait after terminate should timeout to trigger kill path,
+            # subsequent wait (after kill) should return immediately.
+            self._wait_calls += 1
+            if self._wait_calls == 1:
+                raise sp.TimeoutExpired(cmd=["x"], timeout=timeout or 0)
+            return 0
+
+        def kill(self):
+            # After kill, nothing to do
+            pass
+
+    runner = StreamingSubprocess(["echo", "x"])
+    runner._process = FakeProc()
+    # Should exercise terminate->TimeoutExpired->kill path and close pipes
+    runner._cleanup()
+    assert runner._process.stdout.closed is True
+    assert runner._process.stderr.closed is True

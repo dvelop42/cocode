@@ -100,6 +100,13 @@ class TestReadyMarkerWatcher:
 
             assert watcher.get_latest_commit_hash() is None
 
+    def test_get_latest_commit_hash_exception(self, tmp_path: Path):
+        """Exception while fetching commit hash returns None."""
+        watcher = ReadyMarkerWatcher(tmp_path)
+
+        with patch("subprocess.run", side_effect=Exception("boom")):
+            assert watcher.get_latest_commit_hash() is None
+
     def test_has_new_commit_first_check(self, tmp_path: Path):
         """Test has_new_commit on first check."""
         watcher = ReadyMarkerWatcher(tmp_path)
