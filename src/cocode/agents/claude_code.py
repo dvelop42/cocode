@@ -75,7 +75,7 @@ class ClaudeCodeAgent(GitBasedAgent):
         for var in claude_env_vars:
             if var in os.environ:
                 env[var] = os.environ[var]
-                logger.debug(f"Passing through {var} environment variable")
+                # Found Claude authentication variable (not logging for security)
 
         return env
 
@@ -94,8 +94,10 @@ class ClaudeCodeAgent(GitBasedAgent):
             # Fallback if validate wasn't called
             self.command_path = shutil.which("claude")
             if not self.command_path:
-                logger.error("Claude CLI not found, using 'claude' as fallback")
-                self.command_path = "claude"
+                raise RuntimeError(
+                    "Claude CLI not found. Please install Claude Code from: "
+                    "https://github.com/anthropics/claude-code"
+                )
 
         # Build command based on Claude Code CLI structure
         # Claude CLI reads from COCODE_* environment variables automatically

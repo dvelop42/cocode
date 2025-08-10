@@ -116,6 +116,14 @@ class TestClaudeCodeAgent:
         assert agent.command_path == "/usr/bin/claude"
         assert command[0] == "/usr/bin/claude"
 
+    @patch("shutil.which")
+    def test_get_command_no_cli_raises_error(self, mock_which, agent):
+        """Test that RuntimeError is raised when Claude CLI is not found."""
+        mock_which.return_value = None
+
+        with pytest.raises(RuntimeError, match="Claude CLI not found"):
+            agent.get_command()
+
     def test_get_command_with_issue_number(self, agent):
         """Test command generation with issue number in environment."""
         agent.command_path = "/usr/local/bin/claude"
