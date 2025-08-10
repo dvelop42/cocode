@@ -6,38 +6,30 @@
 
 ## Architecture Decision Records (ADRs)
 
-### ADR-001: TUI Framework - Textual ✅
+All architecture decisions are documented in the `docs/adrs/` directory. Here's a summary:
+
+### [ADR-001: TUI Framework - Textual](docs/adrs/adr-001-tui-framework.md) ✅
 - **Decision**: Use Textual over Rich for TUI
 - **Key Reasons**: Built-in async support, testing framework, reactive paradigm, better streaming log handling
-- **Implementation**: Use Compose pattern, reactive attributes, CSS styling, messages for communication, workers for background tasks
 
-### ADR-002: CLI Framework - Typer ✅
+### [ADR-002: CLI Framework - Typer](docs/adrs/adr-002-cli-framework.md) ✅
 - **Decision**: Use Typer over Click for CLI
 - **Key Reasons**: Type hints support, cleaner syntax, auto shell completion, modern Python patterns
-- **Implementation**: Type hints for all args, Rich for console output, typer.testing.CliRunner for tests
 
-### ADR-003: Agent Communication Protocol ✅
+### [ADR-003: Agent Communication Protocol](docs/adrs/adr-003-agent-communication-protocol.md) ✅
 - **Decision**: Environment Variables + Git Commits
-- **Protocol**:
-  - Input: `COCODE_REPO_PATH`, `COCODE_ISSUE_NUMBER`, `COCODE_ISSUE_URL`, `COCODE_ISSUE_BODY_FILE`, `COCODE_READY_MARKER`
-  - Output: Git commits with ready marker (`cocode ready for check`) in commit message
-  - Ready detection: `git log -1 --format=%B | grep -q "cocode ready for check"`
+- **Protocol**: Uses `COCODE_*` env vars for input, git commits with ready marker for output
 - **Exit Codes**: 0=success, 1=error, 2=invalid config, 3=missing deps, 124=timeout, 130=interrupted
 
-### ADR-004: Security Model ✅
+### [ADR-004: Security Model](docs/adrs/adr-004-security-model.md) ✅
 - **MVP Model**: User-level privileges, no sandboxing
 - **Isolation**: Git worktrees with filesystem boundary validation
 - **Secrets**: Allowlist-based environment filtering, comprehensive log redaction
-- **Resources**: 15-minute default timeout with process group cleanup
-- **Future**: Container-based sandboxing, network filtering, fine-grained permissions
 
-### ADR-005: Performance & Scalability Targets ✅
-- **Concurrent Agents**: Max 5 agents (MVP), configurable via profiles (low/medium/high)
-- **Log Handling**: 10MB buffer with auto-rotation, compression for verbose agents (>1MB/min), 2000-line TUI retention
-- **Repository Limits**: 500MB working tree recommended, clear size calculation (excludes .git, respects .gitignore)
-- **Timeouts**: Adaptive 15-45min based on complexity, smart polling intervals (2s→5s→10s)
-- **Memory Management**: 2GB per agent soft limit, graceful handling of limit violations
-- **Edge Cases**: Defined strategies for memory/timeout exceeded, log overflow, size violations
+### [ADR-005: Performance & Scalability Targets](docs/adrs/adr-005-performance-scalability-targets.md) ✅
+- **Concurrent Agents**: Max 5 agents (MVP), configurable via profiles
+- **Log Handling**: 10MB buffer with auto-rotation, compression for verbose agents
+- **Repository Limits**: 500MB working tree recommended, clear size calculation
 
 ## Key Architectural Decisions
 

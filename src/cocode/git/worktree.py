@@ -2,6 +2,7 @@
 
 import logging
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -17,6 +18,8 @@ class WorktreeError(Exception):
 class WorktreeManager:
     """Manages git worktrees for agents."""
 
+    COCODE_PREFIX = "cocode_"
+
     def __init__(self, repo_path: Path):
         """Initialize worktree manager.
 
@@ -31,6 +34,52 @@ class WorktreeManager:
         git_dir = self.repo_path / ".git"
         if not git_dir.exists():
             raise WorktreeError(f"Not a git repository: {self.repo_path}")
+
+    def _validate_worktree_path(self, path: Path) -> bool:
+        """Ensure worktree path is within safe boundaries.
+
+        Args:
+            path: Path to validate
+
+        Returns:
+            True if path is safe, False otherwise
+        """
+        try:
+            resolved_path = path.resolve()
+            allowed_parent = self.repo_path.parent.resolve()
+            # Path must be directly in the repository's parent directory
+            return resolved_path.parent == allowed_parent
+        except (ValueError, RuntimeError):
+            return False
+
+    def _validate_agent_name(self, agent_name: str) -> str:
+        """Validate and sanitize agent name.
+
+        Args:
+            agent_name: Name to validate
+
+        Returns:
+            Sanitized agent name
+
+        Raises:
+            WorktreeError: If agent name is invalid
+        """
+        # First check if the name contains only allowed characters
+        if not agent_name:
+            raise WorktreeError("Agent name cannot be empty")
+
+        # Check for path traversal attempts
+        if ".." in agent_name or "/" in agent_name or "\\" in agent_name:
+            raise WorktreeError(f"Invalid agent name: {agent_name} (contains path separators)")
+
+        # Sanitize the name
+        safe_agent_name = re.sub(r"[^a-zA-Z0-9_-]", "_", agent_name)
+
+        # Final validation - ensure it only contains allowed characters
+        if not re.match(r"^[a-zA-Z0-9_-]+$", safe_agent_name):
+            raise WorktreeError(f"Invalid agent name after sanitization: {safe_agent_name}")
+
+        return safe_agent_name
 
     def _run_git_command(self, args: list[str], cwd: Path | None = None) -> str:
         """Run a git command and return output.
@@ -72,10 +121,14 @@ class WorktreeManager:
         Raises:
             WorktreeError: If worktree creation fails
         """
-        # Sanitize names for filesystem safety
-        safe_agent_name = re.sub(r"[^a-zA-Z0-9_-]", "_", agent_name)
-        worktree_dir_name = f"cocode_{safe_agent_name}"
+        # Validate and sanitize agent name
+        safe_agent_name = self._validate_agent_name(agent_name)
+        worktree_dir_name = f"{self.COCODE_PREFIX}{safe_agent_name}"
         worktree_path = self.repo_path.parent / worktree_dir_name
+
+        # Validate the worktree path is within safe boundaries
+        if not self._validate_worktree_path(worktree_path):
+            raise WorktreeError(f"Worktree path {worktree_path} is outside allowed boundaries")
 
         # Check if worktree already exists
         if worktree_path.exists():
@@ -143,9 +196,7 @@ class WorktreeManager:
             if worktree_path.exists():
                 logger.warning(f"Path exists but is not a git worktree: {worktree_path}")
                 # Check if it's a directory we can clean up
-                if worktree_path.name.startswith("cocode_"):
-                    import shutil
-
+                if worktree_path.name.startswith(self.COCODE_PREFIX):
                     logger.info(f"Removing cocode directory: {worktree_path}")
                     shutil.rmtree(worktree_path, ignore_errors=True)
                     return
@@ -166,8 +217,6 @@ class WorktreeManager:
 
             # If directory still exists, remove it manually
             if worktree_path.exists():
-                import shutil
-
                 logger.info(f"Manually removing worktree directory: {worktree_path}")
                 shutil.rmtree(worktree_path, ignore_errors=True)
 
@@ -210,7 +259,7 @@ class WorktreeManager:
         cocode_worktrees = []
         for worktree_path in all_worktrees.keys():
             path = Path(worktree_path)
-            if path.name.startswith("cocode_"):
+            if path.name.startswith(self.COCODE_PREFIX):
                 cocode_worktrees.append(path)
 
         return cocode_worktrees
