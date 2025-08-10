@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 
 # Claude-specific environment variables
 CLAUDE_ENV_VARS = [
-    "CLAUDE_API_KEY",  # API key authentication
+    "CLAUDE_API_KEY",  # Primary API key (recommended)
     "ANTHROPIC_API_KEY",  # Alternative API key variable
-    "CLAUDE_CODE_OAUTH_TOKEN",  # OAuth token authentication
+    "CLAUDE_CODE_OAUTH_TOKEN",  # OAuth token (for web auth)
 ]
 
 
@@ -75,7 +75,7 @@ class ClaudeCodeAgent(GitBasedAgent):
         for var in claude_env_vars:
             if var in os.environ:
                 env[var] = os.environ[var]
-                # Found Claude authentication variable (not logging for security)
+                # Pass through Claude authentication variables (not logging values for security)
 
         return env
 
@@ -96,7 +96,7 @@ class ClaudeCodeAgent(GitBasedAgent):
             if not self.command_path:
                 raise RuntimeError(
                     "Claude CLI not found. Please install Claude Code from: "
-                    "https://github.com/anthropics/claude-code"
+                    "https://github.com/anthropics/claude-code or verify it's in your PATH"
                 )
 
         # Build command based on Claude Code CLI structure
