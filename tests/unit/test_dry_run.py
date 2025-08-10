@@ -248,6 +248,72 @@ class TestDryRunFormatter:
         assert result is False
 
 
+class TestEnvironmentVariableHandling:
+    """Test environment variable validation for dry run mode."""
+
+    def test_dry_run_env_var_false_values(self, monkeypatch):
+        """Test that false-like values disable dry run mode."""
+        from unittest.mock import Mock
+
+        import cocode.__main__ as main_mod
+
+        false_values = ["false", "0", "no", "off", "False", "FALSE", "NO", "OFF"]
+
+        for false_value in false_values:
+            monkeypatch.setenv("COCODE_DRY_RUN", false_value)
+
+            ctx = Mock()
+            ctx.ensure_object.return_value = None
+            ctx.obj = {}
+
+            # Call with dry_run=True from Typer, but env var should override it to False
+            main_mod._global_options(ctx, version=False, log_level="INFO", dry_run=True)
+
+            assert ctx.obj["dry_run"] is False, f"Failed for value: {false_value}"
+
+    def test_dry_run_env_var_true_values(self, monkeypatch):
+        """Test that true-like values enable dry run mode."""
+        from unittest.mock import Mock
+
+        import cocode.__main__ as main_mod
+
+        true_values = ["true", "1", "yes", "on", "True", "TRUE", "YES", "ON", "anything"]
+
+        for true_value in true_values:
+            monkeypatch.setenv("COCODE_DRY_RUN", true_value)
+
+            ctx = Mock()
+            ctx.ensure_object.return_value = None
+            ctx.obj = {}
+
+            # Call with dry_run=False from Typer, but env var should be True
+            main_mod._global_options(ctx, version=False, log_level="INFO", dry_run=True)
+
+            # Should remain true (not overridden by false values)
+            assert ctx.obj["dry_run"] is True, f"Failed for value: {true_value}"
+
+    def test_dry_run_no_env_var(self, monkeypatch):
+        """Test behavior when no environment variable is set."""
+        from unittest.mock import Mock
+
+        import cocode.__main__ as main_mod
+
+        # Ensure no env var is set
+        monkeypatch.delenv("COCODE_DRY_RUN", raising=False)
+
+        ctx = Mock()
+        ctx.ensure_object.return_value = None
+        ctx.obj = {}
+
+        # Test with CLI flag False
+        main_mod._global_options(ctx, version=False, log_level="INFO", dry_run=False)
+        assert ctx.obj["dry_run"] is False
+
+        # Test with CLI flag True
+        main_mod._global_options(ctx, version=False, log_level="INFO", dry_run=True)
+        assert ctx.obj["dry_run"] is True
+
+
 class TestTUIDryRun:
     """Test TUI dry run indicators."""
 
