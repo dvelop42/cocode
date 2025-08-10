@@ -130,23 +130,24 @@ def test_run_agent_env_filtering(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     # PATH is overridden to safe path dirs
     assert captured_env["PATH"]
     # ensure unapproved arbitrary variables aren't injected
+    allowed = {
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "LC_MESSAGES",
+        "LC_TIME",
+        "TERM",
+        "TERMINFO",
+        "USER",
+        "USERNAME",
+        "TZ",
+        "TMPDIR",
+        "PATH",
+    }
+    allowed_prefixes = ("CLAUDE_", "ANTHROPIC_", "CODEX_", "OPENAI_")
+
     assert all(
-        k.startswith("COCODE_")
-        or k
-        in {
-            "LANG",
-            "LC_ALL",
-            "LC_CTYPE",
-            "LC_MESSAGES",
-            "LC_TIME",
-            "TERM",
-            "TERMINFO",
-            "USER",
-            "USERNAME",
-            "TZ",
-            "TMPDIR",
-            "PATH",
-        }
+        k.startswith("COCODE_") or k in allowed or any(k.startswith(p) for p in allowed_prefixes)
         for k in captured_env.keys()
     )
 

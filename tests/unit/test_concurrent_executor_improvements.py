@@ -10,8 +10,8 @@ from cocode.agents.concurrent_executor import ConcurrentAgentExecutor
 from cocode.git.worktree import WorktreeError
 
 
-class TestAgent(Agent):
-    """Test agent for unit tests."""
+class DummyAgent(Agent):
+    """Helper agent used in these tests."""
 
     def __init__(self, name: str):
         super().__init__(name)
@@ -41,9 +41,9 @@ class TestInputValidation:
         executor = ConcurrentAgentExecutor(Path("/tmp/repo"))
 
         agents = [
-            TestAgent("agent1"),
-            TestAgent("agent2"),
-            TestAgent("agent1"),  # Duplicate
+            DummyAgent("agent1"),
+            DummyAgent("agent2"),
+            DummyAgent("agent1"),  # Duplicate
         ]
 
         with pytest.raises(ValueError, match="Duplicate agent names not allowed"):
@@ -74,7 +74,7 @@ class TestInputValidation:
         """Test that invalid issue numbers are rejected."""
         executor = ConcurrentAgentExecutor(Path("/tmp/repo"))
 
-        agents = [TestAgent("agent1")]
+        agents = [DummyAgent("agent1")]
 
         # Test negative issue number
         with pytest.raises(ValueError, match="Invalid issue number"):
@@ -100,7 +100,7 @@ class TestInputValidation:
         """Test that empty issue body is rejected."""
         executor = ConcurrentAgentExecutor(Path("/tmp/repo"))
 
-        agents = [TestAgent("agent1")]
+        agents = [DummyAgent("agent1")]
 
         with pytest.raises(ValueError, match="Issue body cannot be empty"):
             executor.execute_agents(
@@ -116,7 +116,7 @@ class TestInputValidation:
         """Test that empty issue URL is rejected."""
         executor = ConcurrentAgentExecutor(Path("/tmp/repo"))
 
-        agents = [TestAgent("agent1")]
+        agents = [DummyAgent("agent1")]
 
         with pytest.raises(ValueError, match="Issue URL cannot be empty"):
             executor.execute_agents(
@@ -218,7 +218,7 @@ class TestErrorHandling:
         mock_worktree.create_worktree.side_effect = WorktreeError("Test worktree error")
 
         executor = ConcurrentAgentExecutor(Path("/tmp/repo"))
-        agents = [TestAgent("agent1")]
+        agents = [DummyAgent("agent1")]
 
         # Mock lifecycle manager to avoid hanging
         mock_lifecycle = Mock()

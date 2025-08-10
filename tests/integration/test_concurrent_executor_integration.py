@@ -10,7 +10,7 @@ from cocode.agents.base import Agent
 from cocode.agents.concurrent_executor import ConcurrentAgentExecutor
 
 
-class TestAgent(Agent):
+class DummyAgent(Agent):
     """Simple test agent that creates a file."""
 
     def __init__(self, name: str, delay: float = 0.1):
@@ -93,9 +93,9 @@ class TestConcurrentExecutorIntegration:
 
         # Create test agents with different delays
         agents = [
-            TestAgent("agent1", delay=0.1),
-            TestAgent("agent2", delay=0.2),
-            TestAgent("agent3", delay=0.15),
+            DummyAgent("agent1", delay=0.1),
+            DummyAgent("agent2", delay=0.2),
+            DummyAgent("agent3", delay=0.15),
         ]
 
         # Track output
@@ -163,7 +163,7 @@ class TestConcurrentExecutorIntegration:
         )
 
         agents = [
-            TestAgent("good_agent", delay=0.1),
+            DummyAgent("good_agent", delay=0.1),
             FailingAgent("bad_agent"),
         ]
 
@@ -192,7 +192,7 @@ class TestConcurrentExecutorIntegration:
         )
 
         # Create 4 agents
-        agents = [TestAgent(f"agent{i}", delay=0.1) for i in range(4)]
+        agents = [DummyAgent(f"agent{i}", delay=0.1) for i in range(4)]
 
         # Track when agents start
         start_times = {}
@@ -224,7 +224,7 @@ class TestConcurrentExecutorIntegration:
             agent_timeout=5,
         )
 
-        agent = TestAgent("restart_agent", delay=0.1)
+        agent = DummyAgent("restart_agent", delay=0.1)
         agents = [agent]
 
         # First execution

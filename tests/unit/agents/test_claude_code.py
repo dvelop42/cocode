@@ -6,16 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from cocode.agents.claude_code import CLAUDE_ENV_VARS, ClaudeCodeAgent
-
-
-def test_claude_env_vars_constant():
-    """Test that CLAUDE_ENV_VARS constant is properly defined."""
-    assert isinstance(CLAUDE_ENV_VARS, list)
-    assert len(CLAUDE_ENV_VARS) == 3
-    assert "CLAUDE_API_KEY" in CLAUDE_ENV_VARS
-    assert "ANTHROPIC_API_KEY" in CLAUDE_ENV_VARS
-    assert "CLAUDE_CODE_OAUTH_TOKEN" in CLAUDE_ENV_VARS
+from cocode.agents.claude_code import ClaudeCodeAgent
 
 
 class TestClaudeCodeAgent:
@@ -54,25 +45,27 @@ class TestClaudeCodeAgent:
         mock_which.assert_called_once_with("claude")
 
     def test_prepare_environment_no_env_vars(self, agent):
-        """Test environment preparation with no Claude-specific vars."""
+        """Test environment preparation returns empty dict."""
         worktree_path = Path("/tmp/test")
 
         with patch.dict(os.environ, {}, clear=True):
             env = agent.prepare_environment(worktree_path, 123, "Issue body")
 
+        # Should always return empty dict - Claude CLI handles its own env vars
         assert env == {}
 
     def test_prepare_environment_with_api_key(self, agent):
-        """Test environment preparation with API key."""
+        """Test environment preparation with API key in environment."""
         worktree_path = Path("/tmp/test")
 
         with patch.dict(os.environ, {"CLAUDE_API_KEY": "test-key"}):
             env = agent.prepare_environment(worktree_path, 123, "Issue body")
 
-        assert env == {"CLAUDE_API_KEY": "test-key"}
+        # Should return empty dict - Claude CLI reads API key directly from environment
+        assert env == {}
 
     def test_prepare_environment_multiple_vars(self, agent):
-        """Test environment preparation with multiple Claude vars."""
+        """Test environment preparation with multiple environment vars."""
         worktree_path = Path("/tmp/test")
 
         test_env = {
@@ -85,12 +78,8 @@ class TestClaudeCodeAgent:
         with patch.dict(os.environ, test_env):
             env = agent.prepare_environment(worktree_path, 123, "Issue body")
 
-        assert env == {
-            "CLAUDE_API_KEY": "test-key",
-            "ANTHROPIC_API_KEY": "anthropic-key",
-            "CLAUDE_CODE_OAUTH_TOKEN": "oauth-token",
-        }
-        assert "OTHER_VAR" not in env
+        # Should return empty dict - Claude CLI reads all vars directly from environment
+        assert env == {}
 
     def test_get_command_basic(self, agent):
         """Test basic command generation."""

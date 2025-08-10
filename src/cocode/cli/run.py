@@ -9,6 +9,7 @@ from typer import Context
 
 from cocode.agents.base import Agent, AgentStatus
 from cocode.agents.claude_code import ClaudeCodeAgent
+from cocode.agents.codex_cli import CodexCliAgent
 from cocode.agents.default import GitBasedAgent
 from cocode.agents.discovery import discover_agents
 from cocode.agents.lifecycle import AgentLifecycleManager
@@ -28,8 +29,8 @@ def create_agent(agent_name: str) -> Agent:
     if agent_name == "claude-code":
         return ClaudeCodeAgent()
     # Add more agent types as they are implemented
-    # elif agent_name == "codex-cli":
-    #     return CodexAgent()
+    elif agent_name == "codex-cli":
+        return CodexCliAgent()
     else:
         # Fallback to generic git-based agent
         return GitBasedAgent(agent_name)

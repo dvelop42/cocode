@@ -1,20 +1,12 @@
 """Claude Code agent implementation."""
 
 import logging
-import os
 import shutil
 from pathlib import Path
 
 from cocode.agents.default import GitBasedAgent
 
 logger = logging.getLogger(__name__)
-
-# Claude-specific environment variables
-CLAUDE_ENV_VARS = [
-    "CLAUDE_API_KEY",  # Primary API key (recommended)
-    "ANTHROPIC_API_KEY",  # Alternative API key variable
-    "CLAUDE_CODE_OAUTH_TOKEN",  # OAuth token (for web auth)
-]
 
 
 class ClaudeCodeAgent(GitBasedAgent):
@@ -23,20 +15,27 @@ class ClaudeCodeAgent(GitBasedAgent):
     Claude Code is Anthropic's official CLI for Claude that can be used
     to fix GitHub issues by analyzing code and making commits.
 
-    Example usage:
-        The Claude CLI reads issue context from environment variables set by cocode:
+    How it works:
+        1. Cocode sets up standard COCODE_* environment variables for issue context
+        2. Claude CLI reads its own authentication from environment (CLAUDE_API_KEY, etc.)
+        3. Claude CLI executes in the worktree directory and makes commits
 
-        Environment variables (set by cocode framework):
-        - COCODE_REPO_PATH=/path/to/worktree
-        - COCODE_ISSUE_NUMBER=123
-        - COCODE_ISSUE_BODY_FILE=/tmp/issue_body.txt
-        - COCODE_READY_MARKER="cocode ready for check"
+    Environment variables set by cocode:
+        - COCODE_REPO_PATH: Path to the git worktree
+        - COCODE_ISSUE_NUMBER: GitHub issue number
+        - COCODE_ISSUE_BODY_FILE: Path to file containing issue description
+        - COCODE_READY_MARKER: String to include in commit message when done
 
-        Command executed:
+    Authentication (handled by Claude CLI directly):
+        - CLAUDE_API_KEY or ANTHROPIC_API_KEY: API authentication
+        - CLAUDE_CODE_OAUTH_TOKEN: OAuth token for web authentication
+
+    Command executed:
         claude code --non-interactive
 
-        The CLI will read the issue from COCODE_ISSUE_BODY_FILE and make
-        commits in the worktree at COCODE_REPO_PATH.
+    The CLI will read the issue from COCODE_ISSUE_BODY_FILE and make
+    commits in the worktree at COCODE_REPO_PATH. When ready, it includes
+    the COCODE_READY_MARKER in its final commit message.
     """
 
     def __init__(self) -> None:
@@ -64,20 +63,12 @@ class ClaudeCodeAgent(GitBasedAgent):
         """Prepare environment variables for Claude Code.
 
         Claude Code uses standard COCODE_* environment variables which are
-        already set by the runner. We just need to pass through any
-        Claude-specific environment variables if they exist.
+        already set by the runner. Claude CLI will handle its own
+        authentication environment variables (CLAUDE_API_KEY, etc.)
         """
-        env = {}
-
-        # Pass through Claude-specific environment variables if present
-        claude_env_vars = CLAUDE_ENV_VARS
-
-        for var in claude_env_vars:
-            if var in os.environ:
-                env[var] = os.environ[var]
-                # Pass through Claude authentication variables (not logging values for security)
-
-        return env
+        # No additional environment setup needed
+        # Claude CLI will read its own auth variables from the environment
+        return {}
 
     def get_command(self) -> list[str]:
         """Get the command to execute Claude Code.
