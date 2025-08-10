@@ -213,7 +213,6 @@ cocode uses:
 - [ ] Fork-and-PR workflow
 - [ ] CI/test integration before PR creation
 - [ ] Agent plugin registry
-- [ ] GitHub Enterprise support
 
 ## Contributing
 
