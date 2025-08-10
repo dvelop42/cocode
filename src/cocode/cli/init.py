@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
+from typer import Context
 
 from cocode.agents.discovery import discover_agents
 from cocode.config.manager import ConfigManager, ConfigurationError
@@ -26,8 +27,15 @@ def init_command(
     force: bool = typer.Option(
         False, "--force", "-f", help="Force overwrite existing configuration"
     ),
+    ctx: Context = typer.Context,
 ) -> None:
     """Initialize cocode configuration in the current repository."""
+    # Check for dry run mode
+    dry_run = ctx.obj.get("dry_run", False) if ctx.obj else False
+
+    if dry_run:
+        console.print("\n[bold yellow]🔍 DRY RUN MODE - No changes will be made[/bold yellow]\n")
+
     config_path = Path(".cocode/config.json")
 
     # Check if config already exists
@@ -170,20 +178,38 @@ def init_command(
         if base_agent:
             config_manager.set("base_agent", base_agent)
 
-        # Save configuration
-        config_manager.save()
+        if dry_run:
+            # In dry run mode, show what would be saved
+            console.print("\n[yellow]Would save configuration:[/yellow]")
+            console.print(f"  Config path: {config_path}")
+            console.print(f"  Agents: {[agent['name'] for agent in selected_agents]}")
+            console.print(f"  Base agent: {base_agent}")
+        else:
+            # Save configuration
+            config_manager.save()
 
         # Display summary
         console.print("\n" + "=" * 50)
-        console.print(
-            Panel(
-                f"[green]✓[/green] Configuration saved to [cyan].cocode/config.json[/cyan]\n\n"
-                f"Configured agents: {', '.join([str(a['name']) for a in selected_agents])}\n"
-                f"Base agent: {base_agent or 'None'}",
-                title="[bold green]Initialization Complete[/bold green]",
-                border_style="green",
+        if dry_run:
+            console.print(
+                Panel(
+                    f"[yellow]DRY RUN[/yellow] - Configuration would be saved to [cyan].cocode/config.json[/cyan]\n\n"
+                    f"Configured agents: {', '.join([str(a['name']) for a in selected_agents])}\n"
+                    f"Base agent: {base_agent or 'None'}",
+                    title="[bold yellow]Dry Run Complete[/bold yellow]",
+                    border_style="yellow",
+                )
             )
-        )
+        else:
+            console.print(
+                Panel(
+                    f"[green]✓[/green] Configuration saved to [cyan].cocode/config.json[/cyan]\n\n"
+                    f"Configured agents: {', '.join([str(a['name']) for a in selected_agents])}\n"
+                    f"Base agent: {base_agent or 'None'}",
+                    title="[bold green]Initialization Complete[/bold green]",
+                    border_style="green",
+                )
+            )
 
         console.print("\n[bold]Next steps:[/bold]")
         console.print("  1. Review the configuration: [cyan]cat .cocode/config.json[/cyan]")

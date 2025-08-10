@@ -22,13 +22,15 @@ class WorktreeManager:
 
     COCODE_PREFIX = "cocode_"
 
-    def __init__(self, repo_path: Path):
+    def __init__(self, repo_path: Path, dry_run: bool = False):
         """Initialize worktree manager.
 
         Args:
             repo_path: Path to the main repository
+            dry_run: If True, preview operations without executing them
         """
         self.repo_path = Path(repo_path).resolve()
+        self.dry_run = dry_run
         self._validate_git_repo()
         self.sync = WorktreeSync(self.repo_path)
 
@@ -101,6 +103,12 @@ class WorktreeManager:
             cwd = self.repo_path
 
         cmd = ["git"] + args
+
+        if self.dry_run and self._is_write_command(args):
+            # In dry run mode, don't execute write commands
+            logger.info(f"[DRY RUN] Would execute: {' '.join(cmd)}")
+            return "[DRY RUN]"
+
         try:
             result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=True)
             return result.stdout.strip()
@@ -110,6 +118,49 @@ class WorktreeManager:
             raise WorktreeError(f"Git command failed: {e.stderr}") from e
         except FileNotFoundError:
             raise WorktreeError("Git is not installed or not in PATH") from None
+
+    def _is_write_command(self, args: list[str]) -> bool:
+        """Check if a git command is a write operation.
+
+        Args:
+            args: Git command arguments
+
+        Returns:
+            True if the command modifies the repository
+        """
+        if not args:
+            return False
+
+        # Commands that modify the repository
+        write_commands = {
+            "add",
+            "commit",
+            "push",
+            "pull",
+            "merge",
+            "rebase",
+            "checkout",
+            "switch",
+            "reset",
+            "revert",
+            "stash",
+            "worktree",
+            "branch",
+            "tag",
+            "fetch",
+        }
+
+        # Special case for worktree list (read-only)
+        if len(args) >= 2 and args[0] == "worktree" and args[1] == "list":
+            return False
+
+        # Special case for branch read-only operations
+        if args[0] == "branch" and (
+            len(args) == 1 or args[1] in ["--list", "-v", "-vv", "--show-current"]
+        ):
+            return False
+
+        return args[0] in write_commands
 
     def create_worktree(self, branch_name: str, agent_name: str) -> Path:
         """Create a new worktree for an agent.
@@ -135,14 +186,19 @@ class WorktreeManager:
 
         # Check if worktree already exists
         if worktree_path.exists():
-            logger.warning(f"Worktree path already exists: {worktree_path}")
-            # Try to remove it first
-            try:
-                self.remove_worktree(worktree_path)
-            except WorktreeError as e:
-                logger.error(f"Failed to remove existing worktree: {e}")
-                # If it's not a worktree, raise error
-                raise WorktreeError(f"Path exists but is not a worktree: {worktree_path}") from None
+            if self.dry_run:
+                logger.info(f"[DRY RUN] Would remove existing worktree: {worktree_path}")
+            else:
+                logger.warning(f"Worktree path already exists: {worktree_path}")
+                # Try to remove it first
+                try:
+                    self.remove_worktree(worktree_path)
+                except WorktreeError as e:
+                    logger.error(f"Failed to remove existing worktree: {e}")
+                    # If it's not a worktree, raise error
+                    raise WorktreeError(
+                        f"Path exists but is not a worktree: {worktree_path}"
+                    ) from None
 
         # Fetch latest changes
         logger.info("Fetching latest changes from remote")
@@ -159,28 +215,34 @@ class WorktreeManager:
             default_branch = "main"
 
         # Create the worktree with a new branch
-        logger.info(f"Creating worktree at {worktree_path} with branch {branch_name}")
-        try:
-            self._run_git_command(
-                [
-                    "worktree",
-                    "add",
-                    "-b",
-                    branch_name,
-                    str(worktree_path),
-                    f"origin/{default_branch}",
-                ]
+        if self.dry_run:
+            logger.info(
+                f"[DRY RUN] Would create worktree at {worktree_path} with branch {branch_name}"
             )
-        except WorktreeError as e:
-            # Branch might already exist, try without -b
-            if "already exists" in str(e):
-                logger.info(f"Branch {branch_name} already exists, checking it out")
-                self._run_git_command(["worktree", "add", str(worktree_path), branch_name])
-            else:
-                raise
+            return worktree_path
+        else:
+            logger.info(f"Creating worktree at {worktree_path} with branch {branch_name}")
+            try:
+                self._run_git_command(
+                    [
+                        "worktree",
+                        "add",
+                        "-b",
+                        branch_name,
+                        str(worktree_path),
+                        f"origin/{default_branch}",
+                    ]
+                )
+            except WorktreeError as e:
+                # Branch might already exist, try without -b
+                if "already exists" in str(e):
+                    logger.info(f"Branch {branch_name} already exists, checking it out")
+                    self._run_git_command(["worktree", "add", str(worktree_path), branch_name])
+                else:
+                    raise
 
-        logger.info(f"Successfully created worktree at {worktree_path}")
-        return worktree_path
+            logger.info(f"Successfully created worktree at {worktree_path}")
+            return worktree_path
 
     def remove_worktree(self, worktree_path: Path) -> None:
         """Remove a worktree.
@@ -207,21 +269,24 @@ class WorktreeManager:
                 logger.info(f"Worktree path does not exist: {worktree_path}")
                 return
 
-        logger.info(f"Removing worktree at {worktree_path}")
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Would remove worktree at {worktree_path}")
+        else:
+            logger.info(f"Removing worktree at {worktree_path}")
 
-        # Remove the worktree
-        try:
-            self._run_git_command(["worktree", "remove", str(worktree_path), "--force"])
-            logger.info(f"Successfully removed worktree at {worktree_path}")
-        except WorktreeError as e:
-            # Try to prune if removal fails
-            logger.warning(f"Worktree removal failed, trying prune: {e}")
-            self._run_git_command(["worktree", "prune"])
+            # Remove the worktree
+            try:
+                self._run_git_command(["worktree", "remove", str(worktree_path), "--force"])
+                logger.info(f"Successfully removed worktree at {worktree_path}")
+            except WorktreeError as e:
+                # Try to prune if removal fails
+                logger.warning(f"Worktree removal failed, trying prune: {e}")
+                self._run_git_command(["worktree", "prune"])
 
-            # If directory still exists, remove it manually
-            if worktree_path.exists():
-                logger.info(f"Manually removing worktree directory: {worktree_path}")
-                shutil.rmtree(worktree_path, ignore_errors=True)
+                # If directory still exists, remove it manually
+                if worktree_path.exists():
+                    logger.info(f"Manually removing worktree directory: {worktree_path}")
+                    shutil.rmtree(worktree_path, ignore_errors=True)
 
     def _list_all_worktrees(self) -> dict[str, str]:
         """List all worktrees (internal helper).

@@ -1,5 +1,6 @@
 """Entry point for cocode CLI."""
 
+import os
 import sys
 
 import typer
@@ -29,6 +30,7 @@ app.command("clean")(clean_command)
 
 @app.callback()
 def _global_options(
+    ctx: typer.Context,
     version: bool = typer.Option(
         False,
         "--version",
@@ -43,6 +45,12 @@ def _global_options(
         help="Set logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
         case_sensitive=False,
     ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview operations without executing them",
+        envvar="COCODE_DRY_RUN",
+    ),
 ) -> None:
     """Global options processed before subcommands."""
     if version:
@@ -50,6 +58,16 @@ def _global_options(
         raise typer.Exit()
     # Initialize logging as early as possible
     setup_logging(log_level.upper())
+    # Store dry run flag in context for subcommands to access
+    ctx.ensure_object(dict)
+
+    # Normalize dry run flag from environment variable
+    # Handle cases where COCODE_DRY_RUN might be set to "false", "0", etc.
+    env_dry_run = os.environ.get("COCODE_DRY_RUN", "").lower()
+    if env_dry_run in ("false", "0", "no", "off"):
+        dry_run = False
+
+    ctx.obj["dry_run"] = dry_run
 
 
 def main() -> int:
