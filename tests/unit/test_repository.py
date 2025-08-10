@@ -425,29 +425,28 @@ class TestModuleFunctions:
     """Test module-level convenience functions."""
 
     def test_get_default_branch_function(self):
-        """Test the module-level get_default_branch function."""
-        mock_response = {
+        """Test the module-level get_default_branch function with explicit repo."""
+        mock_function_response = {
             "owner": {"login": "octocat"},
             "name": "hello-world",
             "nameWithOwner": "octocat/hello-world",
             "defaultBranchRef": {"name": "develop"},
         }
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value.stdout = json.dumps(mock_response)
+        with patch("cocode.github.repository.subprocess.run") as mock_run:
+            mock_run.return_value.stdout = json.dumps(mock_function_response)
             mock_run.return_value.returncode = 0
 
             branch = get_default_branch("octocat/hello-world")
 
             assert branch == "develop"
 
-    @pytest.mark.skip(reason="Test needs investigation - may be picking up actual repo config")
     def test_get_default_branch_current_repo(self):
-        """Test get_default_branch with no repo specified."""
-        mock_response = {
-            "owner": {"login": "octocat"},
-            "name": "hello-world",
-            "nameWithOwner": "octocat/hello-world",
+        """Test get_default_branch with no repo specified (auto-detect current repo)."""
+        mock_current_repo_response = {
+            "owner": {"login": "testuser"},
+            "name": "test-repo",
+            "nameWithOwner": "testuser/test-repo",
             "defaultBranchRef": {"name": "main"},
         }
 
@@ -457,12 +456,12 @@ class TestModuleFunctions:
                 cmd = args[0]
                 if cmd[0:3] == ["git", "remote", "get-url"]:
                     result = Mock()
-                    result.stdout = "https://github.com/octocat/hello-world.git\n"
+                    result.stdout = "https://github.com/testuser/test-repo.git\n"
                     result.returncode = 0
                     return result
                 else:  # gh repo view
                     result = Mock()
-                    result.stdout = json.dumps(mock_response)
+                    result.stdout = json.dumps(mock_current_repo_response)
                     result.returncode = 0
                     return result
 

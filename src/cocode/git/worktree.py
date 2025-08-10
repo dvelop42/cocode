@@ -6,6 +6,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from cocode.git.sync import SyncResult, SyncStatus, WorktreeSync
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,6 +30,7 @@ class WorktreeManager:
         """
         self.repo_path = Path(repo_path).resolve()
         self._validate_git_repo()
+        self.sync = WorktreeSync(self.repo_path)
 
     def _validate_git_repo(self) -> None:
         """Validate that repo_path is a git repository."""
@@ -327,3 +330,74 @@ class WorktreeManager:
             pass
 
         return count
+
+    def sync_worktree(
+        self,
+        worktree_path: Path,
+        remote: str = "origin",
+        base_branch: str = "main",
+        strategy: str = "rebase",
+    ) -> SyncResult:
+        """Sync a worktree with upstream changes.
+
+        Args:
+            worktree_path: Path to the worktree
+            remote: Remote name to sync with
+            base_branch: Base branch to sync against
+            strategy: Sync strategy ('rebase' or 'merge')
+
+        Returns:
+            SyncResult with sync status and details
+        """
+        worktree_path = Path(worktree_path).resolve()
+
+        # Validate it's a cocode worktree
+        if not worktree_path.name.startswith(self.COCODE_PREFIX):
+            raise WorktreeError(f"Not a cocode worktree: {worktree_path}")
+
+        # Validate worktree exists
+        all_worktrees = self._list_all_worktrees()
+        if str(worktree_path) not in all_worktrees:
+            raise WorktreeError(f"Worktree not found: {worktree_path}")
+
+        return self.sync.sync(worktree_path, remote, base_branch, strategy)
+
+    def sync_all_worktrees(
+        self, remote: str = "origin", base_branch: str = "main", strategy: str = "rebase"
+    ) -> dict[Path, SyncResult]:
+        """Sync all cocode worktrees with upstream changes.
+
+        Args:
+            remote: Remote name to sync with
+            base_branch: Base branch to sync against
+            strategy: Sync strategy ('rebase' or 'merge')
+
+        Returns:
+            Dictionary mapping worktree paths to their sync results
+        """
+        results = {}
+        worktrees = self.list_worktrees()
+
+        for worktree_path in worktrees:
+            logger.info(f"Syncing worktree: {worktree_path}")
+            try:
+                result = self.sync_worktree(worktree_path, remote, base_branch, strategy)
+                results[worktree_path] = result
+            except Exception as e:
+                logger.error(f"Failed to sync {worktree_path}: {e}")
+                results[worktree_path] = SyncResult(
+                    status=SyncStatus.ERROR, worktree_path=worktree_path, message=str(e)
+                )
+
+        return results
+
+    def detect_conflicts(self, worktree_path: Path) -> tuple[bool, list[str]]:
+        """Detect if a worktree has merge conflicts.
+
+        Args:
+            worktree_path: Path to the worktree
+
+        Returns:
+            Tuple of (has_conflicts, list_of_conflicted_files)
+        """
+        return self.sync.detect_conflicts(worktree_path)
