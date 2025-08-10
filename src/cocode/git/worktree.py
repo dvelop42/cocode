@@ -154,8 +154,10 @@ class WorktreeManager:
         if len(args) >= 2 and args[0] == "worktree" and args[1] == "list":
             return False
 
-        # Special case for branch list (read-only)
-        if len(args) >= 1 and args[0] == "branch" and "-" not in " ".join(args[1:]):
+        # Special case for branch read-only operations
+        if args[0] == "branch" and (
+            len(args) == 1 or args[1] in ["--list", "-v", "-vv", "--show-current"]
+        ):
             return False
 
         return args[0] in write_commands
