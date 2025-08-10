@@ -16,6 +16,23 @@ class GitBasedAgent(Agent):
     the ready marker in git commits, which is the standard protocol.
     """
 
+    def validate_environment(self) -> bool:
+        """Check if agent can run in current environment."""
+        # Basic validation - can be overridden by subclasses
+        return True
+
+    def prepare_environment(
+        self, worktree_path: Path, issue_number: int, issue_body: str
+    ) -> dict[str, str]:
+        """Prepare environment variables for agent execution."""
+        # Return empty dict - subclasses should override
+        return {}
+
+    def get_command(self) -> list[str]:
+        """Get the command to execute the agent."""
+        # Default command - subclasses should override
+        return ["echo", f"Agent {self.name} not implemented"]
+
     def check_ready(self, worktree_path: Path) -> bool:
         """Check if agent has signaled it's ready via git commit.
 
