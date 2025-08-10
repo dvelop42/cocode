@@ -9,12 +9,34 @@ from cocode.agents.default import GitBasedAgent
 
 logger = logging.getLogger(__name__)
 
+# Claude-specific environment variables
+CLAUDE_ENV_VARS = [
+    "CLAUDE_API_KEY",  # API key authentication
+    "ANTHROPIC_API_KEY",  # Alternative API key variable
+    "CLAUDE_CODE_OAUTH_TOKEN",  # OAuth token authentication
+]
+
 
 class ClaudeCodeAgent(GitBasedAgent):
     """Agent implementation for Claude Code CLI.
 
     Claude Code is Anthropic's official CLI for Claude that can be used
     to fix GitHub issues by analyzing code and making commits.
+
+    Example usage:
+        The Claude CLI reads issue context from environment variables set by cocode:
+
+        Environment variables (set by cocode framework):
+        - COCODE_REPO_PATH=/path/to/worktree
+        - COCODE_ISSUE_NUMBER=123
+        - COCODE_ISSUE_BODY_FILE=/tmp/issue_body.txt
+        - COCODE_READY_MARKER="cocode ready for check"
+
+        Command executed:
+        claude code --non-interactive
+
+        The CLI will read the issue from COCODE_ISSUE_BODY_FILE and make
+        commits in the worktree at COCODE_REPO_PATH.
     """
 
     def __init__(self) -> None:
@@ -48,16 +70,12 @@ class ClaudeCodeAgent(GitBasedAgent):
         env = {}
 
         # Pass through Claude-specific environment variables if present
-        claude_env_vars = [
-            "CLAUDE_API_KEY",  # If using API key auth
-            "ANTHROPIC_API_KEY",  # Alternative API key var
-            "CLAUDE_CODE_OAUTH_TOKEN",  # OAuth token for authentication
-        ]
+        claude_env_vars = CLAUDE_ENV_VARS
 
         for var in claude_env_vars:
             if var in os.environ:
                 env[var] = os.environ[var]
-                logger.debug(f"Passing through {var} to Claude Code")
+                logger.debug(f"Passing through {var} environment variable")
 
         return env
 
@@ -74,10 +92,13 @@ class ClaudeCodeAgent(GitBasedAgent):
         """
         if not self.command_path:
             # Fallback if validate wasn't called
-            self.command_path = shutil.which("claude") or "claude"
+            self.command_path = shutil.which("claude")
+            if not self.command_path:
+                logger.error("Claude CLI not found, using 'claude' as fallback")
+                self.command_path = "claude"
 
         # Build command based on Claude Code CLI structure
-        # This assumes Claude Code can take issue content via stdin or file
+        # Claude CLI reads from COCODE_* environment variables automatically
         # and will make commits in the current directory (worktree)
         command: list[str] = [
             self.command_path,
@@ -85,18 +106,11 @@ class ClaudeCodeAgent(GitBasedAgent):
             "--non-interactive",  # Don't prompt for user input
         ]
 
-        # Add issue context if Claude Code supports it
-        # The agent should read from COCODE_ISSUE_BODY_FILE environment variable
-        # Some agents might need explicit arguments
-        issue_number = os.environ.get("COCODE_ISSUE_NUMBER")
-        if issue_number:
-            command.extend(["--issue", issue_number])
-
-        # Add ready marker instruction
-        # This tells Claude Code to include the marker in its final commit
-        ready_marker = os.environ.get("COCODE_READY_MARKER")
-        if ready_marker:
-            command.extend(["--commit-suffix", ready_marker])
+        # Claude CLI will read issue context from environment variables:
+        # - COCODE_ISSUE_NUMBER
+        # - COCODE_ISSUE_BODY_FILE
+        # - COCODE_READY_MARKER
+        # No additional flags are needed
 
         logger.debug(f"Claude Code command: {' '.join(command)}")
         return command

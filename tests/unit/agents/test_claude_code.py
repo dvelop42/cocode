@@ -6,7 +6,16 @@ from unittest.mock import patch
 
 import pytest
 
-from cocode.agents.claude_code import ClaudeCodeAgent
+from cocode.agents.claude_code import CLAUDE_ENV_VARS, ClaudeCodeAgent
+
+
+def test_claude_env_vars_constant():
+    """Test that CLAUDE_ENV_VARS constant is properly defined."""
+    assert isinstance(CLAUDE_ENV_VARS, list)
+    assert len(CLAUDE_ENV_VARS) == 3
+    assert "CLAUDE_API_KEY" in CLAUDE_ENV_VARS
+    assert "ANTHROPIC_API_KEY" in CLAUDE_ENV_VARS
+    assert "CLAUDE_CODE_OAUTH_TOKEN" in CLAUDE_ENV_VARS
 
 
 class TestClaudeCodeAgent:
@@ -108,55 +117,53 @@ class TestClaudeCodeAgent:
         assert command[0] == "/usr/bin/claude"
 
     def test_get_command_with_issue_number(self, agent):
-        """Test command generation with issue number."""
+        """Test command generation with issue number in environment."""
         agent.command_path = "/usr/local/bin/claude"
 
         with patch.dict(os.environ, {"COCODE_ISSUE_NUMBER": "123"}):
             command = agent.get_command()
 
+        # Command should be the same regardless of environment variables
+        # Claude CLI reads them directly
         assert command == [
             "/usr/local/bin/claude",
             "code",
             "--non-interactive",
-            "--issue",
-            "123",
         ]
 
     def test_get_command_with_ready_marker(self, agent):
-        """Test command generation with ready marker."""
+        """Test command generation with ready marker in environment."""
         agent.command_path = "/usr/local/bin/claude"
 
         with patch.dict(os.environ, {"COCODE_READY_MARKER": "ready for review"}):
             command = agent.get_command()
 
+        # Command should be the same regardless of environment variables
+        # Claude CLI reads them directly
         assert command == [
             "/usr/local/bin/claude",
             "code",
             "--non-interactive",
-            "--commit-suffix",
-            "ready for review",
         ]
 
     def test_get_command_full(self, agent):
-        """Test command generation with all options."""
+        """Test command generation with all environment variables."""
         agent.command_path = "/usr/local/bin/claude"
 
         test_env = {
             "COCODE_ISSUE_NUMBER": "456",
             "COCODE_READY_MARKER": "cocode ready for check",
+            "COCODE_ISSUE_BODY_FILE": "/tmp/issue.txt",
         }
 
         with patch.dict(os.environ, test_env):
             command = agent.get_command()
 
+        # Command remains simple - Claude CLI reads environment directly
         assert command == [
             "/usr/local/bin/claude",
             "code",
             "--non-interactive",
-            "--issue",
-            "456",
-            "--commit-suffix",
-            "cocode ready for check",
         ]
 
     def test_handle_error_known_exit_codes(self, agent):
