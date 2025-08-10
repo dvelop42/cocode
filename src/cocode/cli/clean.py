@@ -7,6 +7,7 @@ import typer
 from rich.console import Console
 from rich.prompt import Confirm
 from rich.table import Table
+from typer import Context
 
 from cocode.git.sync import SyncStatus
 from cocode.git.worktree import WorktreeError, WorktreeManager
@@ -23,6 +24,7 @@ def clean_command(
     interactive: bool = typer.Option(
         True, "--interactive/--no-interactive", help="Enable interactive mode"
     ),
+    ctx: Context = typer.Context,
 ) -> None:
     """Clean up cocode worktrees and branches.
 
@@ -32,13 +34,19 @@ def clean_command(
     - Removing selected or all worktrees
     - Cleaning up associated branches
     """
+    # Check for dry run mode
+    dry_run = ctx.obj.get("dry_run", False) if ctx.obj else False
+    
+    if dry_run:
+        console.print("\n[bold yellow]🔍 DRY RUN MODE - No changes will be made[/bold yellow]\n")
+    
     try:
         # Get current directory as repo path
         repo_path = Path.cwd()
 
         # Initialize worktree manager
         try:
-            manager = WorktreeManager(repo_path)
+            manager = WorktreeManager(repo_path, dry_run=dry_run)
         except WorktreeError as e:
             console.print(f"[red]Error:[/red] {e}")
             console.print("[yellow]Make sure you're in a git repository[/yellow]")
@@ -132,26 +140,33 @@ def clean_command(
                 raise typer.Exit(ExitCode.SUCCESS)
 
         # Remove selected worktrees
-        console.print(f"\n[cyan]Removing {len(to_remove)} worktree(s)...[/cyan]")
+        console.print(f"\n[cyan]{'Would remove' if dry_run else 'Removing'} {len(to_remove)} worktree(s)...[/cyan]")
 
         removed_count = 0
         failed_count = 0
 
         for worktree_path in to_remove:
             try:
-                console.print(f"Removing {worktree_path.name}...", end=" ")
-                manager.remove_worktree(worktree_path)
-                console.print("[green]✓[/green]")
-                removed_count += 1
+                if dry_run:
+                    console.print(f"[yellow]Would remove {worktree_path.name}[/yellow]")
+                    removed_count += 1
+                else:
+                    console.print(f"Removing {worktree_path.name}...", end=" ")
+                    manager.remove_worktree(worktree_path)
+                    console.print("[green]✓[/green]")
+                    removed_count += 1
             except WorktreeError as e:
                 console.print(f"[red]✗[/red] {e}")
                 failed_count += 1
 
         # Summary
-        console.print(f"\n[green]Successfully removed {removed_count} worktree(s)[/green]")
-        if failed_count > 0:
-            console.print(f"[red]Failed to remove {failed_count} worktree(s)[/red]")
-            raise typer.Exit(ExitCode.GENERAL_ERROR)
+        if dry_run:
+            console.print(f"\n[yellow]Would remove {removed_count} worktree(s)[/yellow]")
+        else:
+            console.print(f"\n[green]Successfully removed {removed_count} worktree(s)[/green]")
+            if failed_count > 0:
+                console.print(f"[red]Failed to remove {failed_count} worktree(s)[/red]")
+                raise typer.Exit(ExitCode.GENERAL_ERROR)
 
         raise typer.Exit(ExitCode.SUCCESS)
 

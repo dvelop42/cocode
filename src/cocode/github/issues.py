@@ -18,14 +18,17 @@ class GithubError(Exception):
 class IssueManager:
     """Manages GitHub issues via gh CLI."""
 
-    def __init__(self, repo_path: Path | None = None):
+    def __init__(self, repo_path: Path | None = None, dry_run: bool = False):
         """Initialize the issue manager.
 
         Args:
             repo_path: Path to the repository. If not provided, uses current directory.
+            dry_run: If True, preview operations without executing them.
         """
         self.repo_path = repo_path or Path.cwd()
-        self._verify_gh_cli()
+        self.dry_run = dry_run
+        if not self.dry_run:
+            self._verify_gh_cli()
 
     def _verify_gh_cli(self) -> None:
         """Verify gh CLI is installed and authenticated."""
@@ -117,6 +120,23 @@ class IssueManager:
         logger.info(f"Fetching issues with state={state}, limit={limit}")
         logger.debug(f"Running command: {' '.join(cmd)}")
 
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Would execute: {' '.join(cmd)}")
+            # Return sample data in dry run mode
+            return [
+                {
+                    "number": 1,
+                    "title": "[DRY RUN] Sample Issue",
+                    "body": "This is a sample issue in dry run mode",
+                    "state": "OPEN",
+                    "author": "sample-user",
+                    "labels": ["dry-run"],
+                    "url": "https://github.com/example/repo/issues/1",
+                    "createdAt": "2024-01-01T00:00:00Z",
+                    "updatedAt": "2024-01-01T00:00:00Z"
+                }
+            ]
+
         try:
             result = subprocess.run(
                 cmd, cwd=self.repo_path, capture_output=True, text=True, check=True
@@ -163,6 +183,21 @@ class IssueManager:
         ]
 
         logger.info(f"Fetching issue #{issue_number}")
+
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Would execute: {' '.join(cmd)}")
+            # Return sample data in dry run mode
+            return {
+                "number": issue_number,
+                "title": f"[DRY RUN] Sample Issue #{issue_number}",
+                "body": f"This is a sample issue #{issue_number} in dry run mode",
+                "state": "OPEN",
+                "author": "sample-user",
+                "labels": ["dry-run"],
+                "url": f"https://github.com/example/repo/issues/{issue_number}",
+                "createdAt": "2024-01-01T00:00:00Z",
+                "updatedAt": "2024-01-01T00:00:00Z"
+            }
 
         try:
             result = subprocess.run(
