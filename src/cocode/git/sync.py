@@ -271,7 +271,7 @@ class WorktreeSync:
             stash_result = subprocess.run(
                 ["git", "rev-parse", "stash@{0}"], cwd=worktree_path, capture_output=True, text=True
             )
-            return stash_result.stdout.strip() if stash_result.returncode == 0 else "stash@{0}"
+            return stash_result.stdout.strip() if stash_result.returncode == 0 else None
         return None
 
     def _apply_stash(self, worktree_path: Path, stash_ref: str) -> bool:
