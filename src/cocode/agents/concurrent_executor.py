@@ -544,7 +544,7 @@ class ConcurrentAgentExecutor:
                 )
                 worktrees[agent.name] = worktree_path
                 logger.info(f"Created worktree for {agent.name} at {worktree_path}")
-            except (WorktreeError, subprocess.CalledProcessError, OSError, Exception) as e:
+            except (WorktreeError, subprocess.CalledProcessError, OSError) as e:
                 logger.error(f"Failed to create worktree for {agent.name}: {e}")
 
         return worktrees
@@ -637,7 +637,7 @@ class ConcurrentAgentExecutor:
             try:
                 self.worktree_manager.remove_worktree(worktree_path)
                 logger.info(f"Removed worktree for {agent.name}")
-            except (WorktreeError, subprocess.CalledProcessError, OSError, Exception) as e:
+            except (WorktreeError, subprocess.CalledProcessError, OSError) as e:
                 logger.warning(f"Failed to remove worktree for {agent.name}: {e}")
 
     def get_agent_status(self, agent_name: str) -> AgentStatus | None:

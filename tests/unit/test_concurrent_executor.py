@@ -301,7 +301,7 @@ class TestConcurrentAgentExecutor:
         with patch.object(executor.worktree_manager, "create_worktree") as mock_create:
             mock_create.side_effect = [
                 Path("/tmp/worktree1"),
-                Exception("Failed to create worktree"),
+                OSError("Failed to create worktree"),
             ]
 
             worktrees = executor._prepare_worktrees(agents, 123, "main")
@@ -404,7 +404,7 @@ class TestConcurrentAgentExecutor:
         agents = [MockAgent("agent1"), MockAgent("agent2")]
 
         with patch.object(executor.worktree_manager, "remove_worktree") as mock_remove:
-            mock_remove.side_effect = [None, Exception("Removal failed")]
+            mock_remove.side_effect = [None, OSError("Removal failed")]
 
             # Should not raise exception
             executor.cleanup_worktrees(agents)
