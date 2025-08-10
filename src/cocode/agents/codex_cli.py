@@ -3,6 +3,7 @@
 import logging
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
 from cocode.agents.default import GitBasedAgent
@@ -47,9 +48,10 @@ class CodexCliAgent(GitBasedAgent):
         """Initialize Codex CLI agent."""
         super().__init__("codex-cli")
         self.command_path: str | None = None
+        self.cli_style: str | None = None  # 'standard' or 'env-based'
 
     def validate_environment(self) -> bool:
-        """Check if Codex CLI is available."""
+        """Check if Codex CLI is available and detect its interface style."""
         # Check for 'codex' command
         self.command_path = shutil.which("codex")
 
@@ -60,7 +62,37 @@ class CodexCliAgent(GitBasedAgent):
             return False
 
         logger.debug(f"Found Codex CLI at: {self.command_path}")
+
+        # Try to detect CLI interface style by checking help output
+        self.cli_style = self._detect_cli_style()
+        logger.debug(f"Detected Codex CLI style: {self.cli_style}")
+
         return True
+
+    def _detect_cli_style(self) -> str:
+        """Detect Codex CLI interface style by checking help output."""
+        if not self.command_path:
+            return "env-based"
+
+        try:
+            # Try to get help output to detect supported flags
+            result = subprocess.run(
+                [self.command_path, "--help"], capture_output=True, text=True, timeout=5
+            )
+
+            help_text = result.stdout.lower()
+
+            # Check if it supports our expected flags
+            if "fix" in help_text or "--issue-file" in help_text:
+                return "standard"
+            else:
+                # Fallback to environment-based approach
+                return "env-based"
+
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
+            logger.debug(f"Could not detect CLI style: {e}")
+            # Default to environment-based approach if we can't detect
+            return "env-based"
 
     def prepare_environment(
         self, worktree_path: Path, issue_number: int, issue_body: str
@@ -92,27 +124,66 @@ class CodexCliAgent(GitBasedAgent):
                 raise RuntimeError(
                     "Codex CLI not found. Please install Codex CLI and verify it's in your PATH"
                 )
+            self.cli_style = self._detect_cli_style()
 
-        # Build command based on Codex CLI structure
-        # This assumes Codex CLI has a 'fix' or similar subcommand
-        # and can read issue from a file
-        command: list[str] = [
-            self.command_path,
-            "fix",  # Subcommand for fixing issues
-            "--issue-file",  # Flag to specify issue file
-            os.environ.get("COCODE_ISSUE_BODY_FILE", ""),  # Issue file path
-            "--issue-number",  # Flag to specify issue number
-            os.environ.get("COCODE_ISSUE_NUMBER", ""),  # Issue number
-            "--no-interactive",  # Don't prompt for user input
-            "--commit-marker",  # Flag to specify ready marker
-            os.environ.get("COCODE_READY_MARKER", "cocode ready for check"),  # Ready marker
-        ]
+        # Validate environment variables
+        self._validate_environment_variables()
 
-        # Filter out empty values in case environment variables aren't set
-        command = [arg for arg in command if arg]
+        # Build command based on detected CLI style
+        if self.cli_style == "standard":
+            # Standard CLI with explicit flags
+            command = self._build_standard_command()
+        else:
+            # Environment-based CLI that reads COCODE_* variables directly
+            command = self._build_env_based_command()
 
         logger.debug(f"Codex CLI command: {' '.join(command)}")
         return command
+
+    def _validate_environment_variables(self) -> None:
+        """Validate required environment variables."""
+        issue_file = os.environ.get("COCODE_ISSUE_BODY_FILE")
+        issue_number = os.environ.get("COCODE_ISSUE_NUMBER")
+
+        # Validate issue file exists
+        if issue_file and not Path(issue_file).exists():
+            logger.warning(f"Issue file does not exist: {issue_file}")
+
+        # Validate issue number is numeric
+        if issue_number and not issue_number.isdigit():
+            logger.warning(f"Issue number is not numeric: {issue_number}")
+
+    def _build_standard_command(self) -> list[str]:
+        """Build command for standard CLI interface with flags."""
+        command: list[str] = [self.command_path]
+
+        # Add subcommand
+        command.append("fix")
+
+        # Add issue file if available
+        issue_file = os.environ.get("COCODE_ISSUE_BODY_FILE")
+        if issue_file:
+            command.extend(["--issue-file", issue_file])
+
+        # Add issue number if available
+        issue_number = os.environ.get("COCODE_ISSUE_NUMBER")
+        if issue_number:
+            command.extend(["--issue-number", issue_number])
+
+        # Add non-interactive flag
+        command.append("--no-interactive")
+
+        # Add commit marker if available
+        ready_marker = os.environ.get("COCODE_READY_MARKER")
+        if ready_marker:
+            command.extend(["--commit-marker", ready_marker])
+
+        return command
+
+    def _build_env_based_command(self) -> list[str]:
+        """Build command for environment-based CLI that reads COCODE_* vars."""
+        # Simple command that relies on environment variables
+        return [self.command_path]
 
     def handle_error(self, exit_code: int, output: str) -> str:
         """Handle Codex CLI specific error codes and messages.
@@ -133,19 +204,49 @@ class CodexCliAgent(GitBasedAgent):
         }
 
         base_msg = error_messages.get(exit_code, f"Codex CLI failed with exit code {exit_code}")
+        output_lower = output.lower()
 
-        # Look for specific error patterns in output
-        if "authentication" in output.lower() or "api key" in output.lower():
-            return f"{base_msg}: Authentication failed. Check CODEX_API_KEY or OPENAI_API_KEY"
-        elif "rate limit" in output.lower():
-            return f"{base_msg}: Rate limit exceeded. Please wait before retrying"
-        elif "network" in output.lower() or "connection" in output.lower():
-            return f"{base_msg}: Network error. Check your internet connection"
-        elif "permission" in output.lower():
+        # More granular authentication error detection
+        if "authentication" in output_lower or "api key" in output_lower:
+            # Try to determine which key is the issue
+            if "codex_api_key" in output_lower:
+                return f"{base_msg}: Authentication failed. CODEX_API_KEY is missing or invalid"
+            elif "openai_api_key" in output_lower:
+                return f"{base_msg}: Authentication failed. OPENAI_API_KEY is missing or invalid"
+            elif "unauthorized" in output_lower or "401" in output:
+                return f"{base_msg}: Authentication failed. API key is invalid or expired"
+            else:
+                return f"{base_msg}: Authentication failed. Check CODEX_API_KEY or OPENAI_API_KEY environment variables"
+
+        # Rate limiting with more specific guidance
+        elif "rate limit" in output_lower:
+            if "quota" in output_lower:
+                return f"{base_msg}: API quota exceeded. Check your plan limits or wait until quota resets"
+            else:
+                return f"{base_msg}: Rate limit exceeded. Please wait before retrying"
+
+        # Network errors with more detail
+        elif "network" in output_lower or "connection" in output_lower:
+            if "timeout" in output_lower:
+                return f"{base_msg}: Network timeout. The API server might be slow or unreachable"
+            elif "refused" in output_lower:
+                return f"{base_msg}: Connection refused. Check if you're behind a firewall or proxy"
+            else:
+                return f"{base_msg}: Network error. Check your internet connection"
+
+        # Permission errors
+        elif "permission" in output_lower:
             return f"{base_msg}: Permission denied. Check file permissions in worktree"
-        elif "model" in output.lower() and "not found" in output.lower():
-            return f"{base_msg}: Model not found. Check CODEX_MODEL environment variable"
-        elif "token" in output.lower() and "limit" in output.lower():
-            return f"{base_msg}: Token limit exceeded. Try reducing CODEX_MAX_TOKENS"
+
+        # Model-related errors
+        elif "model" in output_lower:
+            if "not found" in output_lower or "invalid" in output_lower:
+                return f"{base_msg}: Model not found. Check CODEX_MODEL environment variable"
+            elif "deprecated" in output_lower:
+                return f"{base_msg}: Model deprecated. Update CODEX_MODEL to a supported model"
+
+        # Token limit errors
+        elif "token" in output_lower and ("limit" in output_lower or "exceeded" in output_lower):
+            return f"{base_msg}: Token limit exceeded. Try reducing CODEX_MAX_TOKENS or splitting the issue"
 
         return base_msg
