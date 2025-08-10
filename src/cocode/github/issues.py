@@ -40,6 +40,29 @@ class IssueManager:
                 "GitHub CLI not installed. Install from: https://cli.github.com"
             ) from e
 
+    def _transform_issue(self, issue: dict[str, Any]) -> dict[str, Any]:
+        """Transform raw issue data from gh CLI.
+
+        Args:
+            issue: Raw issue dictionary from gh CLI.
+
+        Returns:
+            Transformed issue with normalized labels and author.
+        """
+        # Transform label objects to simple strings
+        if "labels" in issue and issue["labels"]:
+            issue["labels"] = [
+                label["name"] if isinstance(label, dict) else label for label in issue["labels"]
+            ]
+        else:
+            issue["labels"] = []
+
+        # Transform author object to username string
+        if "author" in issue and isinstance(issue["author"], dict):
+            issue["author"] = issue["author"].get("login", "unknown")
+
+        return issue
+
     def fetch_issues(
         self,
         state: str = "open",
@@ -101,19 +124,8 @@ class IssueManager:
 
             issues: list[dict[str, Any]] = json.loads(result.stdout)
 
-            # Transform label objects to simple strings
-            for issue in issues:
-                if "labels" in issue and issue["labels"]:
-                    issue["labels"] = [
-                        label["name"] if isinstance(label, dict) else label
-                        for label in issue["labels"]
-                    ]
-                else:
-                    issue["labels"] = []
-
-                # Transform author object to username string
-                if "author" in issue and isinstance(issue["author"], dict):
-                    issue["author"] = issue["author"].get("login", "unknown")
+            # Transform each issue
+            issues = [self._transform_issue(issue) for issue in issues]
 
             logger.info(f"Fetched {len(issues)} issues")
             return issues
@@ -136,8 +148,11 @@ class IssueManager:
             Issue dictionary with same keys as fetch_issues().
 
         Raises:
+            ValueError: If issue_number is not positive.
             GithubError: If issue doesn't exist or gh command fails.
         """
+        if issue_number <= 0:
+            raise ValueError("Issue number must be positive")
         cmd = [
             "gh",
             "issue",
@@ -156,17 +171,8 @@ class IssueManager:
 
             issue: dict[str, Any] = json.loads(result.stdout)
 
-            # Transform label objects to simple strings
-            if "labels" in issue and issue["labels"]:
-                issue["labels"] = [
-                    label["name"] if isinstance(label, dict) else label for label in issue["labels"]
-                ]
-            else:
-                issue["labels"] = []
-
-            # Transform author object to username string
-            if "author" in issue and isinstance(issue["author"], dict):
-                issue["author"] = issue["author"].get("login", "unknown")
+            # Transform the issue
+            issue = self._transform_issue(issue)
 
             logger.info(f"Successfully fetched issue #{issue_number}")
             return issue
@@ -189,6 +195,7 @@ class IssueManager:
             The issue body content as a string.
 
         Raises:
+            ValueError: If issue_number is not positive.
             GithubError: If issue doesn't exist or gh command fails.
         """
         issue = self.get_issue(issue_number)
@@ -202,37 +209,31 @@ class IssueManager:
         assignee: str | None = None,
         page_size: int = 100,
     ) -> list[dict[str, Any]]:
-        """Fetch all issues with pagination support.
+        """Fetch all available issues (limited by gh CLI capabilities).
 
-        This method handles pagination automatically, fetching all issues
-        that match the given criteria by making multiple requests if needed.
+        Note: The gh CLI doesn't support true offset-based pagination.
+        This method fetches all issues that gh CLI returns (typically up to 1000).
+        For repositories with more issues, consider using the GitHub API directly.
 
         Args:
             state: Issue state filter (open, closed, all). Defaults to "open".
             labels: List of labels to filter by.
             assignee: Filter by assignee username.
-            page_size: Number of issues to fetch per page (max 100).
+            page_size: Ignored - kept for API compatibility. gh CLI doesn't support
+                      true pagination.
 
         Returns:
-            Complete list of all matching issues.
+            Complete list of all matching issues that gh CLI can return.
 
         Raises:
             GithubError: If gh command fails.
         """
-        page_size = min(page_size, 100)  # gh CLI max is 100 per page
-
-        logger.info(f"Fetching all issues with pagination (page_size={page_size})")
-
-        # Note: gh CLI doesn't have true pagination with offsets,
-        # but we can use --limit to control batch size
-        # For true pagination, we'd need to use the GitHub API directly
-
-        # Since gh CLI doesn't support offset-based pagination,
-        # we'll fetch with a high limit and hope it gets all issues
-        # For repos with many issues, consider using the API directly
-
-        issues = self.fetch_issues(
-            state=state, limit=None, labels=labels, assignee=assignee  # Fetch all available
+        logger.info(
+            f"Fetching all available issues (state={state}). " "Note: gh CLI pagination is limited."
         )
+
+        # gh CLI doesn't support offset-based pagination, so we fetch all available
+        # issues in a single request. The CLI typically limits to ~1000 issues.
+        issues = self.fetch_issues(state=state, limit=None, labels=labels, assignee=assignee)
 
         return issues

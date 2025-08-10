@@ -149,6 +149,23 @@ class TestIssueManager:
         assert issue["labels"] == ["enhancement", "priority"]
 
     @patch("subprocess.run")
+    def test_get_issue_validates_positive_number(self, mock_run):
+        """Test that get_issue validates issue number is positive."""
+        # Mock auth check
+        auth_result = Mock(returncode=0)
+        mock_run.side_effect = [auth_result]
+
+        manager = IssueManager()
+
+        # Test with zero
+        with pytest.raises(ValueError, match="Issue number must be positive"):
+            manager.get_issue(0)
+
+        # Test with negative number
+        with pytest.raises(ValueError, match="Issue number must be positive"):
+            manager.get_issue(-5)
+
+    @patch("subprocess.run")
     def test_get_issue_body(self, mock_run):
         """Test fetching issue body text."""
         # Mock auth check
@@ -174,6 +191,23 @@ class TestIssueManager:
         body = manager.get_issue_body(456)
 
         assert body == "This is the issue body content"
+
+    @patch("subprocess.run")
+    def test_get_issue_body_validates_positive_number(self, mock_run):
+        """Test that get_issue_body validates issue number is positive."""
+        # Mock auth check
+        auth_result = Mock(returncode=0)
+        mock_run.side_effect = [auth_result]
+
+        manager = IssueManager()
+
+        # Test with zero
+        with pytest.raises(ValueError, match="Issue number must be positive"):
+            manager.get_issue_body(0)
+
+        # Test with negative number
+        with pytest.raises(ValueError, match="Issue number must be positive"):
+            manager.get_issue_body(-10)
 
     @patch("subprocess.run")
     def test_fetch_all_issues(self, mock_run):
