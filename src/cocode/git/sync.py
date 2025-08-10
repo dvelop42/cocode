@@ -43,6 +43,8 @@ class SyncResult:
 class WorktreeSync:
     """Handle worktree synchronization with upstream changes."""
 
+    STASH_MESSAGE = "cocode: auto-stash before sync"
+
     def __init__(self, repo_path: Path):
         """Initialize worktree sync.
 
@@ -72,21 +74,10 @@ class WorktreeSync:
         worktree_path = Path(worktree_path).resolve()
 
         try:
-            # Check if worktree has uncommitted changes
-            if self._has_uncommitted_changes(worktree_path):
-                # Stash changes
-                stash_ref = self._stash_changes(worktree_path)
-                if not stash_ref:
-                    return SyncResult(
-                        status=SyncStatus.ERROR,
-                        worktree_path=worktree_path,
-                        conflict_type=ConflictType.UNCOMMITTED_CHANGES,
-                        message="Failed to stash uncommitted changes",
-                    )
-
-                logger.info(f"Stashed changes in {worktree_path}: {stash_ref}")
-            else:
-                stash_ref = None
+            # Handle uncommitted changes
+            stash_ref, error_result = self._handle_uncommitted_changes(worktree_path)
+            if error_result:
+                return error_result
 
             # Fetch latest changes
             if not self._fetch_updates(worktree_path, remote):
@@ -98,27 +89,14 @@ class WorktreeSync:
 
             # Check if branch has diverged
             divergence = self._check_divergence(worktree_path, remote, base_branch)
-            if divergence == "diverged":
-                # Perform sync based on strategy
-                if strategy == "rebase":
-                    result = self._rebase(worktree_path, f"{remote}/{base_branch}")
-                else:
-                    result = self._merge(worktree_path, f"{remote}/{base_branch}")
 
-                if not result["success"]:
-                    conflicts = self._get_conflicted_files(worktree_path)
-                    return SyncResult(
-                        status=SyncStatus.CONFLICTS,
-                        worktree_path=worktree_path,
-                        conflicts=conflicts,
-                        conflict_type=(
-                            ConflictType.REBASE_CONFLICT
-                            if strategy == "rebase"
-                            else ConflictType.MERGE_CONFLICT
-                        ),
-                        stash_ref=stash_ref,
-                        message=f"{strategy.capitalize()} resulted in conflicts",
-                    )
+            if divergence == "diverged":
+                # Perform sync for diverged branches
+                conflict_result = self._perform_diverged_sync(
+                    worktree_path, remote, base_branch, strategy, stash_ref
+                )
+                if conflict_result:
+                    return conflict_result
 
             elif divergence == "behind":
                 # Fast-forward merge
@@ -131,33 +109,133 @@ class WorktreeSync:
 
             # Restore stashed changes if any
             if stash_ref:
-                if not self._apply_stash(worktree_path, stash_ref):
-                    return SyncResult(
-                        status=SyncStatus.CONFLICTS,
-                        worktree_path=worktree_path,
-                        conflict_type=ConflictType.MERGE_CONFLICT,
-                        stash_ref=stash_ref,
-                        message="Conflicts when applying stashed changes",
-                    )
+                conflict_result = self._restore_stashed_changes(worktree_path, stash_ref)
+                if conflict_result:
+                    return conflict_result
 
-            # Check final status
-            if self._has_uncommitted_changes(worktree_path):
-                return SyncResult(
-                    status=SyncStatus.STASHED,
-                    worktree_path=worktree_path,
-                    stash_ref=stash_ref,
-                    message="Sync completed with uncommitted changes",
-                )
-            else:
-                return SyncResult(
-                    status=SyncStatus.UPDATED if divergence != "up-to-date" else SyncStatus.CLEAN,
-                    worktree_path=worktree_path,
-                    message="Sync completed successfully",
-                )
+            # Determine final status
+            return self._determine_final_status(worktree_path, divergence, stash_ref)
 
         except Exception as e:
             logger.error(f"Sync error for {worktree_path}: {e}")
             return SyncResult(status=SyncStatus.ERROR, worktree_path=worktree_path, message=str(e))
+
+    def _handle_uncommitted_changes(
+        self, worktree_path: Path
+    ) -> tuple[str | None, SyncResult | None]:
+        """Handle uncommitted changes by stashing them.
+
+        Args:
+            worktree_path: Path to the worktree
+
+        Returns:
+            Tuple of (stash_ref, error_result). If error_result is not None, sync should return it.
+        """
+        if not self._has_uncommitted_changes(worktree_path):
+            return None, None
+
+        stash_ref = self._stash_changes(worktree_path)
+        if not stash_ref:
+            return None, SyncResult(
+                status=SyncStatus.ERROR,
+                worktree_path=worktree_path,
+                conflict_type=ConflictType.UNCOMMITTED_CHANGES,
+                message="Failed to stash uncommitted changes",
+            )
+
+        logger.info(f"Stashed changes in {worktree_path}: {stash_ref}")
+        return stash_ref, None
+
+    def _perform_diverged_sync(
+        self,
+        worktree_path: Path,
+        remote: str,
+        base_branch: str,
+        strategy: str,
+        stash_ref: str | None,
+    ) -> SyncResult | None:
+        """Perform synchronization when branch has diverged.
+
+        Args:
+            worktree_path: Path to the worktree
+            remote: Remote name
+            base_branch: Base branch name
+            strategy: Sync strategy ('rebase' or 'merge')
+            stash_ref: Reference to stashed changes if any
+
+        Returns:
+            SyncResult if there was an error or conflict, None if successful
+        """
+        target_branch = f"{remote}/{base_branch}"
+
+        if strategy == "rebase":
+            result = self._rebase(worktree_path, target_branch)
+        else:
+            result = self._merge(worktree_path, target_branch)
+
+        if not result["success"]:
+            conflicts = self._get_conflicted_files(worktree_path)
+            return SyncResult(
+                status=SyncStatus.CONFLICTS,
+                worktree_path=worktree_path,
+                conflicts=conflicts,
+                conflict_type=(
+                    ConflictType.REBASE_CONFLICT
+                    if strategy == "rebase"
+                    else ConflictType.MERGE_CONFLICT
+                ),
+                stash_ref=stash_ref,
+                message=f"{strategy.capitalize()} resulted in conflicts",
+            )
+        return None
+
+    def _restore_stashed_changes(self, worktree_path: Path, stash_ref: str) -> SyncResult | None:
+        """Restore stashed changes and handle any conflicts.
+
+        Args:
+            worktree_path: Path to the worktree
+            stash_ref: Reference to stashed changes
+
+        Returns:
+            SyncResult if there was a conflict, None if successful
+        """
+        if not self._apply_stash(worktree_path, stash_ref):
+            return SyncResult(
+                status=SyncStatus.CONFLICTS,
+                worktree_path=worktree_path,
+                conflict_type=ConflictType.MERGE_CONFLICT,
+                stash_ref=stash_ref,
+                message="Conflicts when applying stashed changes",
+            )
+        return None
+
+    def _determine_final_status(
+        self, worktree_path: Path, divergence: str, stash_ref: str | None
+    ) -> SyncResult:
+        """Determine the final sync status and create result.
+
+        Args:
+            worktree_path: Path to the worktree
+            divergence: Divergence status from _check_divergence
+            stash_ref: Reference to stashed changes if any
+
+        Returns:
+            Final SyncResult
+        """
+        if self._has_uncommitted_changes(worktree_path):
+            return SyncResult(
+                status=SyncStatus.STASHED,
+                worktree_path=worktree_path,
+                stash_ref=stash_ref,
+                message="Sync completed with uncommitted changes",
+            )
+        else:
+            status = SyncStatus.UPDATED if divergence != "up-to-date" else SyncStatus.CLEAN
+            return SyncResult(
+                status=status,
+                worktree_path=worktree_path,
+                message="Sync completed successfully",
+            )
 
     def detect_conflicts(self, worktree_path: Path) -> tuple[bool, list[str]]:
         """Detect if a worktree has merge conflicts.
@@ -182,7 +260,7 @@ class WorktreeSync:
     def _stash_changes(self, worktree_path: Path) -> str | None:
         """Stash uncommitted changes."""
         result = subprocess.run(
-            ["git", "stash", "push", "-m", "cocode: auto-stash before sync"],
+            ["git", "stash", "push", "-m", self.STASH_MESSAGE],
             cwd=worktree_path,
             capture_output=True,
             text=True,

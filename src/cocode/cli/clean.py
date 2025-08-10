@@ -158,6 +158,9 @@ def clean_command(
     except KeyboardInterrupt:
         console.print("\n[yellow]Operation cancelled by user[/yellow]")
         raise typer.Exit(ExitCode.INTERRUPTED) from None
+    except typer.Exit as e:
+        # Allow Typer's normal exit flow (e.g., success codes) to pass through
+        raise e
     except Exception as e:
         logger.exception("Unexpected error in clean command")
         console.print(f"[red]Unexpected error:[/red] {e}")
