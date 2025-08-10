@@ -62,3 +62,24 @@ class TestGitBasedAgent:
 
             assert result is False
             mock_check.assert_called_once_with(tmp_path, "cocode ready for check")
+
+    def test_validate_environment_default_true(self):
+        """Default validate_environment returns True."""
+
+        agent = GitBasedAgent("demo")
+        assert agent.validate_environment() is True
+
+    def test_prepare_environment_default_empty(self, tmp_path: Path):
+        """Default prepare_environment returns empty mapping."""
+
+        agent = GitBasedAgent("demo")
+        env = agent.prepare_environment(tmp_path, 123, "body")
+        assert env == {}
+
+    def test_get_command_default_message(self):
+        """Default get_command returns informative message with name."""
+
+        name = "demo-agent"
+        agent = GitBasedAgent(name)
+        cmd = agent.get_command()
+        assert cmd[:2] == ["echo", f"Agent {name} not implemented"]

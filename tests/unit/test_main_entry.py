@@ -30,3 +30,30 @@ def test_main_keyboard_interrupt(monkeypatch):
 def test_main_generic_exception(monkeypatch):
     monkeypatch.setattr(main_mod, "app", lambda: (_ for _ in ()).throw(Exception("boom")))
     assert main_mod.main() == 1
+
+
+def test_global_dry_run_env_normalization_false(monkeypatch):
+    """COCODE_DRY_RUN env like '0' should override flag to False."""
+    from unittest.mock import Mock
+
+    monkeypatch.setenv("COCODE_DRY_RUN", "0")
+
+    ctx = Mock()
+    ctx.ensure_object.return_value = None
+    ctx.obj = {}
+
+    # Pass dry_run=True, but env should normalize it to False
+    main_mod._global_options(ctx, version=False, log_level="INFO", dry_run=True)
+    assert ctx.obj.get("dry_run") is False
+
+
+def test_main_success_returns_zero(monkeypatch):
+    """When app runs normally, main returns 0."""
+    called = {}
+
+    def fake_app():
+        called["ok"] = True
+
+    monkeypatch.setattr(main_mod, "app", fake_app)
+    assert main_mod.main() == 0
+    assert called.get("ok") is True

@@ -28,21 +28,21 @@ class Agent(ABC):
     @abstractmethod
     def validate_environment(self) -> bool:
         """Check if agent can run in current environment."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def prepare_environment(
         self, worktree_path: Path, issue_number: int, issue_body: str
     ) -> dict[str, str]:
         """Prepare environment variables for agent execution."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_command(self) -> list[str]:
         """Get the command to execute the agent."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def check_ready(self, worktree_path: Path) -> bool:
         """Check if agent has signaled it's ready."""
-        pass
+        raise NotImplementedError
