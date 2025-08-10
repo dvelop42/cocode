@@ -103,12 +103,12 @@ class WorktreeManager:
             cwd = self.repo_path
 
         cmd = ["git"] + args
-        
+
         if self.dry_run and self._is_write_command(args):
             # In dry run mode, don't execute write commands
             logger.info(f"[DRY RUN] Would execute: {' '.join(cmd)}")
             return "[DRY RUN]"
-        
+
         try:
             result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=True)
             return result.stdout.strip()
@@ -118,34 +118,46 @@ class WorktreeManager:
             raise WorktreeError(f"Git command failed: {e.stderr}") from e
         except FileNotFoundError:
             raise WorktreeError("Git is not installed or not in PATH") from None
-    
+
     def _is_write_command(self, args: list[str]) -> bool:
         """Check if a git command is a write operation.
-        
+
         Args:
             args: Git command arguments
-            
+
         Returns:
             True if the command modifies the repository
         """
         if not args:
             return False
-        
+
         # Commands that modify the repository
         write_commands = {
-            "add", "commit", "push", "pull", "merge", "rebase",
-            "checkout", "switch", "reset", "revert", "stash",
-            "worktree", "branch", "tag", "fetch"
+            "add",
+            "commit",
+            "push",
+            "pull",
+            "merge",
+            "rebase",
+            "checkout",
+            "switch",
+            "reset",
+            "revert",
+            "stash",
+            "worktree",
+            "branch",
+            "tag",
+            "fetch",
         }
-        
+
         # Special case for worktree list (read-only)
         if len(args) >= 2 and args[0] == "worktree" and args[1] == "list":
             return False
-        
+
         # Special case for branch list (read-only)
         if len(args) >= 1 and args[0] == "branch" and "-" not in " ".join(args[1:]):
             return False
-            
+
         return args[0] in write_commands
 
     def create_worktree(self, branch_name: str, agent_name: str) -> Path:
@@ -182,7 +194,9 @@ class WorktreeManager:
                 except WorktreeError as e:
                     logger.error(f"Failed to remove existing worktree: {e}")
                     # If it's not a worktree, raise error
-                    raise WorktreeError(f"Path exists but is not a worktree: {worktree_path}") from None
+                    raise WorktreeError(
+                        f"Path exists but is not a worktree: {worktree_path}"
+                    ) from None
 
         # Fetch latest changes
         logger.info("Fetching latest changes from remote")
@@ -200,7 +214,9 @@ class WorktreeManager:
 
         # Create the worktree with a new branch
         if self.dry_run:
-            logger.info(f"[DRY RUN] Would create worktree at {worktree_path} with branch {branch_name}")
+            logger.info(
+                f"[DRY RUN] Would create worktree at {worktree_path} with branch {branch_name}"
+            )
             return worktree_path
         else:
             logger.info(f"Creating worktree at {worktree_path} with branch {branch_name}")

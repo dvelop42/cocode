@@ -1,20 +1,16 @@
 """Test dry run functionality across the application."""
 
-import json
-import logging
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
-import pytest
 from typer.testing import CliRunner
 
+from cocode.cli.clean import clean_command
 from cocode.cli.init import init_command
 from cocode.cli.run import run_command
-from cocode.cli.clean import clean_command
 from cocode.git.worktree import WorktreeManager
 from cocode.github.issues import IssueManager
-from cocode.utils.dry_run import DryRunFormatter, get_dry_run_context
 from cocode.tui.app import CocodeApp
+from cocode.utils.dry_run import DryRunFormatter, get_dry_run_context
 
 
 class TestDryRunCLI:
@@ -23,19 +19,24 @@ class TestDryRunCLI:
     def test_init_dry_run(self):
         """Test init command in dry run mode."""
         runner = CliRunner()
-        
+
         with patch("cocode.cli.init.discover_agents") as mock_discover:
             mock_discover.return_value = [
-                Mock(name="claude-code", installed=True, path="/usr/bin/claude-code", aliases=["claude-code"])
+                Mock(
+                    name="claude-code",
+                    installed=True,
+                    path="/usr/bin/claude-code",
+                    aliases=["claude-code"],
+                )
             ]
-            
+
             with patch("cocode.cli.init.ConfigManager") as mock_config:
                 mock_config_instance = Mock()
                 mock_config.return_value = mock_config_instance
-                
+
                 # Test with dry run
                 result = runner.invoke(init_command, ["--no-interactive", "--dry-run"])
-                
+
                 assert result.exit_code == 0
                 assert "DRY RUN MODE" in result.output
                 assert "Would save configuration" in result.output
@@ -45,16 +46,16 @@ class TestDryRunCLI:
     def test_run_dry_run(self):
         """Test run command in dry run mode."""
         runner = CliRunner()
-        
+
         # Mock context to include dry_run flag
         mock_ctx = Mock()
         mock_ctx.obj = {"dry_run": True}
-        
+
         with patch("cocode.cli.run.typer.Context") as mock_context:
             mock_context.get_current.return_value = mock_ctx
-            
+
             result = runner.invoke(run_command, ["123", "--dry-run"])
-            
+
             assert result.exit_code == 1  # Command not implemented yet
             assert "DRY RUN MODE" in result.output
             assert "Would run agents on issue #123" in result.output
@@ -62,12 +63,12 @@ class TestDryRunCLI:
     def test_clean_dry_run(self, tmp_path):
         """Test clean command in dry run mode."""
         runner = CliRunner()
-        
+
         # Create a mock git repository
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
         (repo_path / ".git").mkdir()
-        
+
         with patch("cocode.cli.clean.Path.cwd", return_value=repo_path):
             with patch("cocode.git.worktree.WorktreeManager") as mock_manager:
                 mock_instance = Mock()
@@ -79,16 +80,16 @@ class TestDryRunCLI:
                     "last_commit": "abc123 Test commit",
                     "has_changes": False,
                 }
-                
+
                 # Mock context to include dry_run flag
                 mock_ctx = Mock()
                 mock_ctx.obj = {"dry_run": True}
-                
+
                 with patch("cocode.cli.clean.typer.Context") as mock_context:
                     mock_context.get_current.return_value = mock_ctx
-                    
+
                     result = runner.invoke(clean_command, ["--all", "--force", "--dry-run"])
-                    
+
                     assert "DRY RUN MODE" in result.output
                     assert "Would remove" in result.output
                     # Remove should not be called in dry run mode
@@ -103,9 +104,9 @@ class TestWorktreeManagerDryRun:
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
         (repo_path / ".git").mkdir()
-        
+
         manager = WorktreeManager(repo_path, dry_run=True)
-        
+
         assert manager.dry_run is True
         assert manager.repo_path == repo_path
 
@@ -114,18 +115,18 @@ class TestWorktreeManagerDryRun:
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
         (repo_path / ".git").mkdir()
-        
+
         manager = WorktreeManager(repo_path, dry_run=True)
-        
+
         with patch.object(manager, "_run_git_command") as mock_git:
             mock_git.return_value = "main"  # Mock default branch
-            
+
             result_path = manager.create_worktree("test-branch", "test-agent")
-            
+
             # Should return the expected path
             expected_path = repo_path.parent / "cocode_test-agent"
             assert result_path == expected_path
-            
+
             # Should log dry run operation
             assert "[DRY RUN]" in caplog.text
             assert "Would create worktree" in caplog.text
@@ -135,20 +136,20 @@ class TestWorktreeManagerDryRun:
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
         (repo_path / ".git").mkdir()
-        
+
         worktree_path = repo_path.parent / "cocode_test"
         worktree_path.mkdir()
-        
+
         manager = WorktreeManager(repo_path, dry_run=True)
-        
+
         with patch.object(manager, "_list_all_worktrees") as mock_list:
             mock_list.return_value = {str(worktree_path): "test-branch"}
-            
+
             manager.remove_worktree(worktree_path)
-            
+
             # Directory should still exist in dry run mode
             assert worktree_path.exists()
-            
+
             # Should log dry run operation
             assert "[DRY RUN]" in caplog.text
             assert "Would remove worktree" in caplog.text
@@ -158,19 +159,19 @@ class TestWorktreeManagerDryRun:
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
         (repo_path / ".git").mkdir()
-        
+
         manager = WorktreeManager(repo_path, dry_run=True)
-        
+
         # Test write command (should be skipped)
         result = manager._run_git_command(["worktree", "add", "test"])
         assert result == "[DRY RUN]"
         assert "[DRY RUN] Would execute" in caplog.text
-        
+
         # Test read command (should execute normally)
         with patch("subprocess.run") as mock_run:
             mock_run.return_value.stdout = "test output"
             mock_run.return_value.returncode = 0
-            
+
             result = manager._run_git_command(["status", "--porcelain"])
             assert result == "test output"
             mock_run.assert_called_once()
@@ -182,9 +183,9 @@ class TestGitHubIssuesDryRun:
     def test_issue_manager_dry_run_init(self):
         """Test IssueManager initialization with dry run."""
         manager = IssueManager(dry_run=True)
-        
+
         assert manager.dry_run is True
-        
+
         # Should not verify gh CLI in dry run mode
         with patch.object(manager, "_verify_gh_cli") as mock_verify:
             IssueManager(dry_run=True)
@@ -193,9 +194,9 @@ class TestGitHubIssuesDryRun:
     def test_fetch_issues_dry_run(self, caplog):
         """Test fetching issues in dry run mode."""
         manager = IssueManager(dry_run=True)
-        
+
         issues = manager.fetch_issues(state="open", limit=10)
-        
+
         assert len(issues) == 1
         assert issues[0]["title"] == "[DRY RUN] Sample Issue"
         assert issues[0]["labels"] == ["dry-run"]
@@ -204,9 +205,9 @@ class TestGitHubIssuesDryRun:
     def test_get_issue_dry_run(self, caplog):
         """Test getting a specific issue in dry run mode."""
         manager = IssueManager(dry_run=True)
-        
+
         issue = manager.get_issue(123)
-        
+
         assert issue["number"] == 123
         assert issue["title"] == "[DRY RUN] Sample Issue #123"
         assert issue["labels"] == ["dry-run"]
@@ -215,9 +216,9 @@ class TestGitHubIssuesDryRun:
     def test_get_issue_body_dry_run(self):
         """Test getting issue body in dry run mode."""
         manager = IssueManager(dry_run=True)
-        
+
         body = manager.get_issue_body(456)
-        
+
         assert body == "This is a sample issue #456 in dry run mode"
 
 
@@ -227,20 +228,20 @@ class TestDryRunFormatter:
     def test_formatter_disabled(self, capsys):
         """Test formatter when dry run is disabled."""
         formatter = DryRunFormatter(enabled=False)
-        
+
         formatter.format_operation("test operation")
         formatter.format_command(["git", "add", "."])
         formatter.format_file_operation("create", "test.txt", "content")
-        
+
         captured = capsys.readouterr()
         assert captured.out == ""
 
     def test_formatter_enabled(self, capsys):
         """Test formatter when dry run is enabled."""
         formatter = DryRunFormatter(enabled=True)
-        
+
         formatter.format_operation("test operation", "with details")
-        
+
         captured = capsys.readouterr()
         assert "Would test operation" in captured.out
         assert "with details" in captured.out
@@ -248,9 +249,9 @@ class TestDryRunFormatter:
     def test_format_command(self, capsys):
         """Test command formatting."""
         formatter = DryRunFormatter(enabled=True)
-        
+
         formatter.format_command(["git", "commit", "-m", "test"])
-        
+
         captured = capsys.readouterr()
         assert "Would execute:" in captured.out
         assert "git commit -m test" in captured.out
@@ -258,10 +259,10 @@ class TestDryRunFormatter:
     def test_format_file_operation(self, capsys):
         """Test file operation formatting."""
         formatter = DryRunFormatter(enabled=True)
-        
+
         content = "line1\nline2\nline3\nline4\nline5\nline6\nline7"
         formatter.format_file_operation("create", "test.txt", content)
-        
+
         captured = capsys.readouterr()
         assert "Would create file:" in captured.out
         assert "test.txt" in captured.out
@@ -271,10 +272,10 @@ class TestDryRunFormatter:
     def test_show_summary(self, capsys):
         """Test summary display."""
         formatter = DryRunFormatter(enabled=True)
-        
+
         operations = ["Create worktree", "Run agent", "Create PR"]
         formatter.show_summary(operations)
-        
+
         captured = capsys.readouterr()
         assert "DRY RUN SUMMARY" in captured.out
         assert "Create worktree" in captured.out
@@ -286,15 +287,15 @@ class TestDryRunFormatter:
         # Mock context with dry_run flag
         mock_ctx = Mock()
         mock_ctx.obj = {"dry_run": True}
-        
+
         result = get_dry_run_context(mock_ctx)
         assert result is True
-        
+
         # Mock context without dry_run flag
         mock_ctx.obj = {}
         result = get_dry_run_context(mock_ctx)
         assert result is False
-        
+
         # Mock context without obj
         mock_ctx.obj = None
         result = get_dry_run_context(mock_ctx)
@@ -307,9 +308,9 @@ class TestTUIDryRun:
     def test_tui_dry_run_mode(self):
         """Test TUI with dry run mode enabled."""
         app = CocodeApp(dry_run=True)
-        
+
         assert app.dry_run is True
-        
+
         # Test title setting
         app.on_mount()
         assert app.title == "Cocode - DRY RUN MODE"
@@ -317,9 +318,9 @@ class TestTUIDryRun:
     def test_tui_normal_mode(self):
         """Test TUI in normal mode."""
         app = CocodeApp(dry_run=False)
-        
+
         assert app.dry_run is False
-        
+
         # Test title setting
         app.on_mount()
         assert app.title == "Cocode"
@@ -327,24 +328,24 @@ class TestTUIDryRun:
     def test_tui_compose_dry_run(self):
         """Test TUI composition with dry run indicator."""
         app = CocodeApp(dry_run=True)
-        
+
         # Get composed widgets
         widgets = list(app.compose())
-        
+
         # Should have dry run indicator
         dry_run_widgets = [w for w in widgets if hasattr(w, "id") and w.id == "dry-run-indicator"]
         assert len(dry_run_widgets) == 1
-        
+
         indicator = dry_run_widgets[0]
         assert "DRY RUN MODE" in str(indicator.renderable)
 
     def test_tui_compose_normal(self):
         """Test TUI composition without dry run indicator."""
         app = CocodeApp(dry_run=False)
-        
+
         # Get composed widgets
         widgets = list(app.compose())
-        
+
         # Should not have dry run indicator
         dry_run_widgets = [w for w in widgets if hasattr(w, "id") and w.id == "dry-run-indicator"]
         assert len(dry_run_widgets) == 0
@@ -358,23 +359,22 @@ class TestDryRunIntegration:
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
         (repo_path / ".git").mkdir()
-        
+
         # Initialize components in dry run mode
         worktree_manager = WorktreeManager(repo_path, dry_run=True)
         issue_manager = IssueManager(dry_run=True)
-        formatter = DryRunFormatter(enabled=True)
-        
+
         # Simulate workflow
         issue = issue_manager.get_issue(123)
         assert issue["title"] == "[DRY RUN] Sample Issue #123"
-        
+
         worktree_path = worktree_manager.create_worktree("test-branch", "test-agent")
         expected_path = repo_path.parent / "cocode_test-agent"
         assert worktree_path == expected_path
-        
+
         # Should not create actual worktree
         assert not worktree_path.exists()
-        
+
         # Should have dry run logs
         assert "[DRY RUN]" in caplog.text
         assert "Would create worktree" in caplog.text

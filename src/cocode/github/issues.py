@@ -133,7 +133,7 @@ class IssueManager:
                     "labels": ["dry-run"],
                     "url": "https://github.com/example/repo/issues/1",
                     "createdAt": "2024-01-01T00:00:00Z",
-                    "updatedAt": "2024-01-01T00:00:00Z"
+                    "updatedAt": "2024-01-01T00:00:00Z",
                 }
             ]
 
@@ -196,7 +196,7 @@ class IssueManager:
                 "labels": ["dry-run"],
                 "url": f"https://github.com/example/repo/issues/{issue_number}",
                 "createdAt": "2024-01-01T00:00:00Z",
-                "updatedAt": "2024-01-01T00:00:00Z"
+                "updatedAt": "2024-01-01T00:00:00Z",
             }
 
         try:

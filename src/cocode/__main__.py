@@ -4,7 +4,6 @@ import sys
 
 import typer
 from rich.console import Console
-from typer import Context
 
 from cocode import __version__
 from cocode.cli.clean import clean_command

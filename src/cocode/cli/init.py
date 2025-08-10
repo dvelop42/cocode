@@ -15,7 +15,6 @@ from typer import Context
 from cocode.agents.discovery import discover_agents
 from cocode.config.manager import ConfigManager, ConfigurationError
 from cocode.utils.exit_codes import ExitCode
-from cocode.utils.dry_run import DryRunFormatter
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -33,11 +32,10 @@ def init_command(
     """Initialize cocode configuration in the current repository."""
     # Check for dry run mode
     dry_run = ctx.obj.get("dry_run", False) if ctx.obj else False
-    formatter = DryRunFormatter(enabled=dry_run)
-    
+
     if dry_run:
         console.print("\n[bold yellow]🔍 DRY RUN MODE - No changes will be made[/bold yellow]\n")
-    
+
     config_path = Path(".cocode/config.json")
 
     # Check if config already exists

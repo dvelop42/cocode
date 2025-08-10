@@ -18,7 +18,7 @@ def run_command(
     """Run agents to fix a GitHub issue."""
     # Check for dry run mode
     dry_run = ctx.obj.get("dry_run", False) if ctx.obj else False
-    
+
     if dry_run:
         console.print("\n[bold yellow]🔍 DRY RUN MODE - No changes will be made[/bold yellow]\n")
         console.print(f"[yellow]Would run agents on issue #{issue}[/yellow]")

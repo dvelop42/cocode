@@ -122,5 +122,5 @@ def get_dry_run_context(ctx: Any) -> bool:
         True if dry run mode is enabled.
     """
     if hasattr(ctx, "obj") and ctx.obj:
-        return ctx.obj.get("dry_run", False)
+        return bool(ctx.obj.get("dry_run", False))
     return False

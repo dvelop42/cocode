@@ -36,10 +36,10 @@ def clean_command(
     """
     # Check for dry run mode
     dry_run = ctx.obj.get("dry_run", False) if ctx.obj else False
-    
+
     if dry_run:
         console.print("\n[bold yellow]🔍 DRY RUN MODE - No changes will be made[/bold yellow]\n")
-    
+
     try:
         # Get current directory as repo path
         repo_path = Path.cwd()
@@ -140,7 +140,9 @@ def clean_command(
                 raise typer.Exit(ExitCode.SUCCESS)
 
         # Remove selected worktrees
-        console.print(f"\n[cyan]{'Would remove' if dry_run else 'Removing'} {len(to_remove)} worktree(s)...[/cyan]")
+        console.print(
+            f"\n[cyan]{'Would remove' if dry_run else 'Removing'} {len(to_remove)} worktree(s)...[/cyan]"
+        )
 
         removed_count = 0
         failed_count = 0

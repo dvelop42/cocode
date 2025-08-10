@@ -1,14 +1,14 @@
 """Main TUI application using Textual."""
 
-from textual.app import App
+from textual.app import App, ComposeResult
+from textual.containers import Container
 from textual.reactive import reactive
-from textual.widgets import Header, Footer, Static
-from textual.containers import Container, Horizontal
+from textual.widgets import Footer, Header, Static
 
 
 class CocodeApp(App):
     """Main TUI application for monitoring agents."""
-    
+
     CSS = """
     .dry-run-indicator {
         background: $warning;
@@ -16,18 +16,18 @@ class CocodeApp(App):
         dock: top;
         height: 1;
     }
-    
+
     .content {
         height: 1fr;
     }
     """
-    
+
     # Reactive attributes
     dry_run = reactive(False)
-    
-    def __init__(self, dry_run: bool = False, **kwargs):
+
+    def __init__(self, dry_run: bool = False, **kwargs: object) -> None:
         """Initialize the app.
-        
+
         Args:
             dry_run: Whether the app is in dry run mode.
             **kwargs: Additional arguments for App.
@@ -35,20 +35,20 @@ class CocodeApp(App):
         super().__init__(**kwargs)
         self.dry_run = dry_run
 
-    def compose(self):
+    def compose(self) -> ComposeResult:
         """Compose the TUI layout."""
         yield Header()
-        
+
         if self.dry_run:
             yield Static(
-                "🔍 DRY RUN MODE - No changes will be made", 
+                "🔍 DRY RUN MODE - No changes will be made",
                 classes="dry-run-indicator",
-                id="dry-run-indicator"
+                id="dry-run-indicator",
             )
-        
+
         with Container(classes="content"):
             yield Static("Agent monitoring interface (placeholder)", id="main-content")
-            
+
         yield Footer()
 
     def on_mount(self) -> None:
