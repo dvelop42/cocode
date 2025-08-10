@@ -1,5 +1,6 @@
 """Entry point for cocode CLI."""
 
+import os
 import sys
 
 import typer
@@ -59,6 +60,13 @@ def _global_options(
     setup_logging(log_level.upper())
     # Store dry run flag in context for subcommands to access
     ctx.ensure_object(dict)
+
+    # Normalize dry run flag from environment variable
+    # Handle cases where COCODE_DRY_RUN might be set to "false", "0", etc.
+    env_dry_run = os.environ.get("COCODE_DRY_RUN", "").lower()
+    if env_dry_run in ("false", "0", "no", "off"):
+        dry_run = False
+
     ctx.obj["dry_run"] = dry_run
 
 

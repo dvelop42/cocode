@@ -38,9 +38,10 @@ class TestWorktreeManagerDryRun:
     def test_create_worktree_dry_run(self, tmp_path, caplog):
         """Test worktree creation in dry run mode."""
         import logging
+
         # Set logging level to capture info messages
         caplog.set_level(logging.INFO)
-        
+
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
         (repo_path / ".git").mkdir()
@@ -63,8 +64,9 @@ class TestWorktreeManagerDryRun:
     def test_remove_worktree_dry_run(self, tmp_path, caplog):
         """Test worktree removal in dry run mode."""
         import logging
+
         caplog.set_level(logging.INFO)
-        
+
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
         (repo_path / ".git").mkdir()
@@ -89,8 +91,9 @@ class TestWorktreeManagerDryRun:
     def test_git_command_dry_run(self, tmp_path, caplog):
         """Test git command execution in dry run mode."""
         import logging
+
         caplog.set_level(logging.INFO)
-        
+
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
         (repo_path / ".git").mkdir()
@@ -129,8 +132,9 @@ class TestGitHubIssuesDryRun:
     def test_fetch_issues_dry_run(self, caplog):
         """Test fetching issues in dry run mode."""
         import logging
+
         caplog.set_level(logging.INFO)
-        
+
         manager = IssueManager(dry_run=True)
 
         issues = manager.fetch_issues(state="open", limit=10)
@@ -143,8 +147,9 @@ class TestGitHubIssuesDryRun:
     def test_get_issue_dry_run(self, caplog):
         """Test getting a specific issue in dry run mode."""
         import logging
+
         caplog.set_level(logging.INFO)
-        
+
         manager = IssueManager(dry_run=True)
 
         issue = manager.get_issue(123)
@@ -279,8 +284,9 @@ class TestDryRunIntegration:
     def test_end_to_end_dry_run_workflow(self, tmp_path, caplog):
         """Test a complete dry run workflow."""
         import logging
+
         caplog.set_level(logging.INFO)
-        
+
         repo_path = tmp_path / "test_repo"
         repo_path.mkdir()
         (repo_path / ".git").mkdir()
