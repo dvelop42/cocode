@@ -150,11 +150,11 @@ class TestResourceLimits:
     @patch("cocode.agents.concurrent_executor.WorktreeManager")
     def test_invalid_timeout(self, mock_worktree_class):
         """Test that invalid timeouts are rejected."""
-        # Timeout too short
+        # Timeout too short (MIN_TIMEOUT is now 1)
         with pytest.raises(ValueError, match="agent_timeout must be between"):
             ConcurrentAgentExecutor(
                 Path("/tmp/repo"),
-                agent_timeout=30,
+                agent_timeout=0,  # Less than MIN_TIMEOUT (1)
             )
 
         # Timeout too long
