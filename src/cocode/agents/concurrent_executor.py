@@ -280,7 +280,16 @@ class ConcurrentAgentExecutor:
         max_sleep = 0.5
 
         while len(completed) < len(agents):
-            # Try to schedule next batch
+            # First, check for any completions to free up capacity
+            newly_completed = self._check_completions(started)
+            for name in newly_completed:
+                completed.add(name)
+                started.remove(name)
+
+            if len(completed) >= len(agents):
+                break
+
+            # Then, try to schedule next batch (after freeing capacity)
             made_progress = self._schedule_next_batch(
                 pending=pending,
                 started=started,
@@ -291,19 +300,15 @@ class ConcurrentAgentExecutor:
                 output_callback=output_callback,
             )
 
-            # Check for completions
-            newly_completed = self._check_completions(started)
-            for name in newly_completed:
-                completed.add(name)
-                started.remove(name)
-
-            if len(completed) >= len(agents):
-                break
-
-            # Handle stuck state
+            # Handle stuck state only if nothing is running and we couldn't start new ones
             if not made_progress and not started and pending:
-                self._handle_stuck_agents(pending, result, completed)
-                break
+                try:
+                    any_running = self.lifecycle_manager.is_any_running()
+                except Exception:
+                    any_running = False
+                if not any_running:
+                    self._handle_stuck_agents(pending, result, completed)
+                    break
 
             # Check safety timeout
             if time.time() > safety_deadline:
