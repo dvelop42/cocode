@@ -4,6 +4,7 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import Label, Log, Static
 
@@ -103,18 +104,36 @@ class OverviewPanel(Static):
         # Build progress bar with different colors for status
         bar_parts = []
 
+        # Calculate widths with floating point for better accuracy
+        completed_ratio = self.completed_agents / self.total_agents
+        failed_ratio = self.failed_agents / self.total_agents
+        running_ratio = self.running_agents / self.total_agents
+
+        # Round to get integer widths, ensuring we don't exceed bar_width
+        completed_width = round(bar_width * completed_ratio)
+        failed_width = round(bar_width * failed_ratio)
+        running_width = round(bar_width * running_ratio)
+
+        # Adjust if total exceeds bar_width due to rounding
+        total_width = completed_width + failed_width + running_width
+        if total_width > bar_width:
+            # Trim from the largest segment
+            if completed_width >= failed_width and completed_width >= running_width:
+                completed_width -= total_width - bar_width
+            elif failed_width >= running_width:
+                failed_width -= total_width - bar_width
+            else:
+                running_width -= total_width - bar_width
+
         # Green for completed
-        completed_width = int(bar_width * (self.completed_agents / self.total_agents))
         if completed_width > 0:
             bar_parts.append(f"[green]{'█' * completed_width}[/green]")
 
         # Red for failed
-        failed_width = int(bar_width * (self.failed_agents / self.total_agents))
         if failed_width > 0:
             bar_parts.append(f"[red]{'█' * failed_width}[/red]")
 
         # Blue for running
-        running_width = int(bar_width * (self.running_agents / self.total_agents))
         if running_width > 0:
             bar_parts.append(f"[blue]{'▒' * running_width}[/blue]")
 
@@ -164,11 +183,17 @@ class OverviewPanel(Static):
         """Called when the widget is mounted."""
         # Populate issue content if available
         if self.issue_body:
-            try:
-                log_widget = self.query_one("#issue-content", Log)
-                # Split content into lines and add to log
-                for line in self.issue_body.split("\n"):
-                    log_widget.write(line + "\n")
-            except Exception:
-                # Widget might not be ready yet
-                pass
+            self._populate_issue_content()
+
+    def _populate_issue_content(self) -> None:
+        """Populate the issue content log widget."""
+        if not self.issue_body:
+            return
+        try:
+            log_widget = self.query_one("#issue-content", Log)
+            # Split content into lines and add to log
+            for line in self.issue_body.split("\n"):
+                log_widget.write(line + "\n")
+        except NoMatches:
+            # Widget might not be ready yet - defer until after refresh
+            self.call_after_refresh(self._populate_issue_content)

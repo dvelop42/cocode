@@ -241,20 +241,31 @@ class CocodeApp(App):
                 )
 
         # Start update loop only if we have an event loop (not in tests)
+        # In test environments, asyncio.get_running_loop() raises RuntimeError
+        # since tests often run synchronously without an active event loop
         try:
             loop = asyncio.get_running_loop()
             self.update_task = loop.create_task(self._update_loop())
         except RuntimeError:
-            # No event loop available (e.g., in tests)
+            # No event loop available (typically in unit tests)
+            # This allows tests to run synchronously without requiring async setup
             self.update_task = None
 
     async def _update_loop(self) -> None:
         """Update agent states periodically."""
         while True:
             try:
+                # Batch collect all agent states first
+                agent_updates = []
                 for panel in self.agent_panels:
                     info = self.lifecycle_manager.get_agent_info(panel.agent_name)
                     if info:
+                        agent_updates.append((panel, info))
+
+                # Apply all UI updates in a single batch
+                # This reduces the number of render cycles
+                with self.batch_update():
+                    for panel, info in agent_updates:
                         panel.update_state(info.state)
 
                         # Update panel border based on state
