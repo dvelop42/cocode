@@ -269,18 +269,10 @@ class ConcurrentAgentExecutor:
         started: set[str] = set()
         completed: set[str] = set()
 
-        # Safety deadline: prevent infinite waits
-        batches = max(
-            1, (len(agents) + self.max_concurrent_agents - 1) // self.max_concurrent_agents
-        )
-        safety_deadline = time.time() + max(self.agent_timeout, 10) * batches
-
-        # Exponential backoff parameters
+        safety_deadline = self._compute_safety_deadline(len(agents))
         attempt = 0
-        max_sleep = 0.5
 
         while len(completed) < len(agents):
-            # First, check for any completions to free up capacity
             newly_completed = self._check_completions(started)
             for name in newly_completed:
                 completed.add(name)
@@ -289,7 +281,6 @@ class ConcurrentAgentExecutor:
             if len(completed) >= len(agents):
                 break
 
-            # Then, try to schedule next batch (after freeing capacity)
             made_progress = self._schedule_next_batch(
                 pending=pending,
                 started=started,
@@ -300,7 +291,6 @@ class ConcurrentAgentExecutor:
                 output_callback=output_callback,
             )
 
-            # Handle stuck state only if nothing is running and we couldn't start new ones
             if not made_progress and not started and pending:
                 try:
                     any_running = self.lifecycle_manager.is_any_running()
@@ -310,20 +300,29 @@ class ConcurrentAgentExecutor:
                     self._handle_stuck_agents(pending, result, completed)
                     break
 
-            # Check safety timeout
             if time.time() > safety_deadline:
                 self._handle_timeout(pending, result, completed)
                 break
 
-            # Exponential backoff sleep
-            if not made_progress and not newly_completed:
-                attempt += 1
-                sleep_time = min(0.01 * (1.1**attempt), max_sleep)
-            else:
-                attempt = 0
-                sleep_time = 0.01
-
+            sleep_time, attempt = self._compute_sleep_time(
+                made_progress, bool(newly_completed), attempt
+            )
             time.sleep(sleep_time)
+
+    def _compute_safety_deadline(self, total_agents: int) -> float:
+        batches = max(
+            1, (total_agents + self.max_concurrent_agents - 1) // self.max_concurrent_agents
+        )
+        return time.time() + max(self.agent_timeout, 10) * batches
+
+    def _compute_sleep_time(
+        self, made_progress: bool, had_completion: bool, attempt: int
+    ) -> tuple[float, int]:
+        max_sleep = 0.5
+        if not made_progress and not had_completion:
+            attempt += 1
+            return min(0.01 * (1.1**attempt), max_sleep), attempt
+        return 0.01, 0
 
     def _schedule_next_batch(
         self,

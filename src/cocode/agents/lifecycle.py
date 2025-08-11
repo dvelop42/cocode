@@ -41,6 +41,7 @@ class AgentLifecycleInfo:
     worktree_path: Path | None = None
     process: subprocess.Popen[str] | None = None
     thread: threading.Thread | None = None
+    completion_event: threading.Event | None = None
     output_lines: list[str] = field(default_factory=list)
     error: str | None = None
     restart_count: int = 0
@@ -49,6 +50,11 @@ class AgentLifecycleInfo:
 
 class AgentLifecycleManager:
     """Manages the lifecycle of multiple agents."""
+
+    # Timeout constants
+    STOP_TIMEOUT_SECONDS = 5
+    FORCE_STOP_TIMEOUT_SECONDS = 1
+    RESTART_WAIT_SECONDS = 5
 
     def __init__(
         self,
@@ -151,6 +157,7 @@ class AgentLifecycleManager:
             self._running_count += 1
 
         # Start agent in a separate thread
+        info.completion_event = threading.Event()
         thread = threading.Thread(
             target=self._run_agent,
             args=(
@@ -233,8 +240,12 @@ class AgentLifecycleManager:
                 info.state = AgentState.FAILED
                 info.error = str(e)
         finally:
+            completion_event: threading.Event | None = None
             with self._lock:
                 self._running_count -= 1
+                completion_event = info.completion_event
+            if completion_event is not None:
+                completion_event.set()
 
     def stop_agent(self, agent_name: str, force: bool = False) -> bool:
         """Stop a running agent.
@@ -259,18 +270,29 @@ class AgentLifecycleManager:
 
             info.state = AgentState.STOPPING
 
-        # Stop the thread (this is a simplified version)
-        # In a real implementation, we'd need to handle subprocess termination
+        stopped = True
         if info.thread and info.thread.is_alive():
             logger.info(f"Stopping agent {agent_name}")
-            # Thread will complete on its own or timeout
-            # For force stop, we'd need to track the subprocess and terminate it
+            # Request cancellation via runner
+            try:
+                self.runner.cancel_agent(agent_name)
+            except Exception:
+                pass
+
+            # Wait for thread to exit
+            info.thread.join(
+                timeout=(self.FORCE_STOP_TIMEOUT_SECONDS if force else self.STOP_TIMEOUT_SECONDS)
+            )
+            if info.thread.is_alive():
+                stopped = False
 
         with self._lock:
-            info.state = AgentState.STOPPED
+            info.state = AgentState.STOPPED if stopped else info.state
 
-        logger.info(f"Stopped agent {agent_name}")
-        return True
+        logger.info(
+            f"Stopped agent {agent_name}" if stopped else f"Agent {agent_name} did not stop in time"
+        )
+        return stopped
 
     def restart_agent(
         self,
@@ -312,12 +334,11 @@ class AgentLifecycleManager:
 
         logger.info(f"Restarting agent {agent_name} (attempt {info.restart_count})")
 
-        # Stop if running
+        # Stop if running and wait for completion event
         if info.state in (AgentState.RUNNING, AgentState.STARTING):
             self.stop_agent(agent_name)
-
-        # Wait a moment for cleanup
-        time.sleep(0.5)
+            if info.completion_event:
+                info.completion_event.wait(timeout=self.RESTART_WAIT_SECONDS)
 
         # Start again
         return self.start_agent(
@@ -380,22 +401,43 @@ class AgentLifecycleManager:
     def wait_for_completion(self, timeout: float | None = None) -> bool:
         """Wait for all agents to complete.
 
+        Uses events/joins when available; falls back to light polling otherwise
+        for compatibility with tests that manipulate state directly.
+
         Args:
             timeout: Maximum time to wait in seconds
 
         Returns:
             True if all agents completed, False if timeout
         """
-        import time
-
-        start_time = time.time()
-
-        while self.is_any_running():
-            if timeout and (time.time() - start_time) > timeout:
+        start = time.time()
+        poll_interval = 0.05
+        while True:
+            if not self.is_any_running():
+                return True
+            if timeout is not None and (time.time() - start) > timeout:
                 return False
-            time.sleep(0.5)
 
-        return True
+            # Prefer waiting on any available completion event to avoid polling
+            waited = False
+            with self._lock:
+                infos = list(self.agents.values())
+            for info in infos:
+                if info.completion_event is not None:
+                    remaining = None
+                    if timeout is not None:
+                        remaining = max(0.0, timeout - (time.time() - start))
+                    info.completion_event.wait(
+                        timeout=(
+                            min(poll_interval, remaining)
+                            if remaining is not None
+                            else poll_interval
+                        )
+                    )
+                    waited = True
+                    break
+            if not waited:
+                time.sleep(poll_interval)
 
     def shutdown_all(self, force: bool = False) -> None:
         """Shutdown all agents gracefully.

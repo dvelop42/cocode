@@ -242,7 +242,6 @@ class IssueManager:
         state: str = "open",
         labels: list[str] | None = None,
         assignee: str | None = None,
-        page_size: int = 100,
     ) -> list[dict[str, Any]]:
         """Fetch all available issues (limited by gh CLI capabilities).
 

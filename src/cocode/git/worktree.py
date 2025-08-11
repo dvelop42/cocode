@@ -52,8 +52,8 @@ class WorktreeManager:
         try:
             resolved_path = path.resolve()
             allowed_parent = self.repo_path.parent.resolve()
-            # Path must be directly in the repository's parent directory
-            return resolved_path.parent == allowed_parent
+            # Allow any path under the repo's parent directory
+            return resolved_path.is_relative_to(allowed_parent)
         except (ValueError, RuntimeError):
             return False
 
@@ -120,47 +120,107 @@ class WorktreeManager:
             raise WorktreeError("Git is not installed or not in PATH") from None
 
     def _is_write_command(self, args: list[str]) -> bool:
-        """Check if a git command is a write operation.
+        """Heuristically determine if a git command is read-only.
 
-        Args:
-            args: Git command arguments
-
-        Returns:
-            True if the command modifies the repository
+        In dry-run mode we default to treating commands as write operations
+        unless they are explicitly known to be read-only. This reduces the
+        chance of missing a new mutating git verb.
         """
         if not args:
             return False
 
-        # Commands that modify the repository
-        write_commands = {
-            "add",
-            "commit",
-            "push",
-            "pull",
-            "merge",
-            "rebase",
-            "checkout",
-            "switch",
-            "reset",
-            "revert",
-            "stash",
-            "worktree",
-            "branch",
-            "tag",
-            "fetch",
+        verb = args[0]
+
+        # Explicitly allow common read-only commands
+        read_only_verbs = {
+            "status",
+            "log",
+            "show",
+            "diff",
+            "rev-parse",
+            "symbolic-ref",
         }
 
-        # Special case for worktree list (read-only)
-        if len(args) >= 2 and args[0] == "worktree" and args[1] == "list":
+        if verb in read_only_verbs:
             return False
 
-        # Special case for branch read-only operations
-        if args[0] == "branch" and (
-            len(args) == 1 or args[1] in ["--list", "-v", "-vv", "--show-current"]
+        # Allow specific read-only subcommands
+        if verb == "worktree" and len(args) >= 2 and args[1] == "list":
+            return False
+
+        if verb == "branch" and (
+            len(args) == 1 or args[1] in {"--list", "-v", "-vv", "--show-current"}
         ):
             return False
 
-        return args[0] in write_commands
+        # Treat all others as potentially mutating
+        return True
+
+    def _compute_worktree_path(self, agent_name: str) -> Path:
+        """Compute and validate worktree path for an agent."""
+        safe_agent_name = self._validate_agent_name(agent_name)
+        worktree_dir_name = f"{self.COCODE_PREFIX}{safe_agent_name}"
+        worktree_path = self.repo_path.parent / worktree_dir_name
+        if not self._validate_worktree_path(worktree_path):
+            raise WorktreeError(f"Worktree path {worktree_path} is outside allowed boundaries")
+        return worktree_path
+
+    def _fetch_remote(self) -> None:
+        """Fetch latest changes from remote."""
+        logger.info("Fetching latest changes from remote")
+        self._run_git_command(["fetch", "--all", "--prune"])
+
+    def _determine_default_branch(self) -> str:
+        """Determine default branch, falling back to 'main'."""
+        try:
+            ref = self._run_git_command(
+                ["symbolic-ref", "refs/remotes/origin/HEAD"]
+            )  # default branch ref
+            return ref.split("/")[-1]
+        except WorktreeError:
+            logger.warning("Could not determine default branch, using 'main'")
+            return "main"
+
+    def _ensure_clean_target(self, worktree_path: Path) -> None:
+        """Ensure the target worktree path is clean or removed."""
+        if worktree_path.exists():
+            if self.dry_run:
+                logger.info(f"[DRY RUN] Would remove existing worktree: {worktree_path}")
+                return
+            logger.warning(f"Worktree path already exists: {worktree_path}")
+            try:
+                self.remove_worktree(worktree_path)
+            except WorktreeError as e:
+                logger.error(f"Failed to remove existing worktree: {e}")
+                raise WorktreeError(f"Path exists but is not a worktree: {worktree_path}") from None
+
+    def _create_git_worktree(
+        self, worktree_path: Path, branch_name: str, default_branch: str
+    ) -> None:
+        """Create the git worktree, handling existing branch fallback."""
+        if self.dry_run:
+            logger.info(
+                f"[DRY RUN] Would create worktree at {worktree_path} with branch {branch_name}"
+            )
+            return
+        logger.info(f"Creating worktree at {worktree_path} with branch {branch_name}")
+        try:
+            self._run_git_command(
+                [
+                    "worktree",
+                    "add",
+                    "-b",
+                    branch_name,
+                    str(worktree_path),
+                    f"origin/{default_branch}",
+                ]
+            )
+        except WorktreeError as e:
+            if "already exists" in str(e):
+                logger.info(f"Branch {branch_name} already exists, checking it out")
+                self._run_git_command(["worktree", "add", str(worktree_path), branch_name])
+            else:
+                raise
 
     def create_worktree(self, branch_name: str, agent_name: str) -> Path:
         """Create a new worktree for an agent.
@@ -175,74 +235,13 @@ class WorktreeManager:
         Raises:
             WorktreeError: If worktree creation fails
         """
-        # Validate and sanitize agent name
-        safe_agent_name = self._validate_agent_name(agent_name)
-        worktree_dir_name = f"{self.COCODE_PREFIX}{safe_agent_name}"
-        worktree_path = self.repo_path.parent / worktree_dir_name
-
-        # Validate the worktree path is within safe boundaries
-        if not self._validate_worktree_path(worktree_path):
-            raise WorktreeError(f"Worktree path {worktree_path} is outside allowed boundaries")
-
-        # Check if worktree already exists
-        if worktree_path.exists():
-            if self.dry_run:
-                logger.info(f"[DRY RUN] Would remove existing worktree: {worktree_path}")
-            else:
-                logger.warning(f"Worktree path already exists: {worktree_path}")
-                # Try to remove it first
-                try:
-                    self.remove_worktree(worktree_path)
-                except WorktreeError as e:
-                    logger.error(f"Failed to remove existing worktree: {e}")
-                    # If it's not a worktree, raise error
-                    raise WorktreeError(
-                        f"Path exists but is not a worktree: {worktree_path}"
-                    ) from None
-
-        # Fetch latest changes
-        logger.info("Fetching latest changes from remote")
-        self._run_git_command(["fetch", "--all", "--prune"])
-
-        # Get the default branch (usually main or master)
-        try:
-            default_branch = self._run_git_command(
-                ["symbolic-ref", "refs/remotes/origin/HEAD"]
-            ).split("/")[-1]
-        except WorktreeError:
-            # Fallback to main if we can't determine default branch
-            logger.warning("Could not determine default branch, using 'main'")
-            default_branch = "main"
-
-        # Create the worktree with a new branch
-        if self.dry_run:
-            logger.info(
-                f"[DRY RUN] Would create worktree at {worktree_path} with branch {branch_name}"
-            )
-            return worktree_path
-        else:
-            logger.info(f"Creating worktree at {worktree_path} with branch {branch_name}")
-            try:
-                self._run_git_command(
-                    [
-                        "worktree",
-                        "add",
-                        "-b",
-                        branch_name,
-                        str(worktree_path),
-                        f"origin/{default_branch}",
-                    ]
-                )
-            except WorktreeError as e:
-                # Branch might already exist, try without -b
-                if "already exists" in str(e):
-                    logger.info(f"Branch {branch_name} already exists, checking it out")
-                    self._run_git_command(["worktree", "add", str(worktree_path), branch_name])
-                else:
-                    raise
-
-            logger.info(f"Successfully created worktree at {worktree_path}")
-            return worktree_path
+        worktree_path = self._compute_worktree_path(agent_name)
+        self._ensure_clean_target(worktree_path)
+        self._fetch_remote()
+        default_branch = self._determine_default_branch()
+        self._create_git_worktree(worktree_path, branch_name, default_branch)
+        logger.info(f"Successfully created worktree at {worktree_path}")
+        return worktree_path
 
     def remove_worktree(self, worktree_path: Path) -> None:
         """Remove a worktree.
