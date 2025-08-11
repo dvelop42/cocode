@@ -56,6 +56,7 @@ class HelpScreen(ModalScreen[None]):
         ("1..9", "Select agent by number"),
         ("Ctrl+O / Ctrl+A", "Focus overview / agents"),
         ("Ctrl+Up / Ctrl+Down", "Resize panes"),
+        ("r / s", "Restart / Stop selected agent"),
         ("h / l", "Vim: previous/next agent"),
         ("j / k", "Vim: focus agents/overview"),
         ("g / G", "Vim: first/last agent"),

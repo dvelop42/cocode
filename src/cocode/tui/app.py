@@ -398,16 +398,12 @@ class CocodeApp(App):
         """Focus the overview panel."""
         if self.overview_panel:
             self.overview_panel.focus()
-            # Remove selection from agents when focusing overview
-            if self.agent_panels and self.selected_agent_index < len(self.agent_panels):
-                self.agent_panels[self.selected_agent_index].remove_class("focused")
 
     def action_focus_agents(self) -> None:
         """Focus the agent panels."""
         if self.agent_panels:
             self.agent_panels[self.selected_agent_index].focus()
-            # Add focused class to indicate active pane
-            self.agent_panels[self.selected_agent_index].add_class("focused")
+            # Selection state already indicates active pane
 
     def action_first_agent(self) -> None:
         """Select the first agent (vim 'g')."""
