@@ -1,6 +1,7 @@
 """Show cocode configuration and status."""
 
 import json
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -101,7 +102,8 @@ def status_command(
             }
             for wt in worktrees
         ]
-    except Exception:
+    except (FileNotFoundError, PermissionError, subprocess.CalledProcessError):
+        # Git worktree operations failed, but that's okay
         status_data["worktrees"] = []
 
     # Output in JSON format if requested

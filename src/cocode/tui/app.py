@@ -17,6 +17,9 @@ from cocode.tui.agent_panel import AgentPanel
 class CocodeApp(App):
     """Main TUI application for monitoring agents."""
 
+    # Configuration constants
+    DEFAULT_UPDATE_INTERVAL = 0.5  # seconds, can be made configurable via settings in future
+
     CSS = """
     .dry-run-indicator {
         background: $warning;
@@ -89,6 +92,7 @@ class CocodeApp(App):
         issue_body: str = "",
         issue_url: str = "",
         dry_run: bool = False,
+        update_interval: float | None = None,
         **kwargs: object,
     ) -> None:
         """Initialize the app.
@@ -99,6 +103,7 @@ class CocodeApp(App):
             issue_body: Issue body content
             issue_url: URL to the GitHub issue
             dry_run: Whether the app is in dry run mode.
+            update_interval: Optional update interval in seconds (defaults to DEFAULT_UPDATE_INTERVAL)
             **kwargs: Additional arguments for App.
         """
         super().__init__(**kwargs)
@@ -107,6 +112,7 @@ class CocodeApp(App):
         self.issue_body = issue_body
         self.issue_url = issue_url
         self.dry_run = dry_run
+        self.update_interval = update_interval or self.DEFAULT_UPDATE_INTERVAL
         self.agent_panels: list[AgentPanel] = []
         self.update_task: asyncio.Task[None] | None = None
 
@@ -182,7 +188,7 @@ class CocodeApp(App):
                         elif info.state == AgentState.READY:
                             panel.add_class("ready")
 
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(self.update_interval)
             except asyncio.CancelledError:
                 break
             except Exception as e:

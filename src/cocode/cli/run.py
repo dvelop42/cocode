@@ -1,5 +1,6 @@
 """Run cocode agents on a GitHub issue."""
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 
@@ -19,6 +20,66 @@ from cocode.tui.app import CocodeApp
 from cocode.utils.exit_codes import ExitCode
 
 console = Console()
+
+
+def load_configured_agents(
+    config_path: Path, factory: AgentFactory, debug: bool = False
+) -> dict[str, Agent]:
+    """Load and validate configured agents from configuration file.
+
+    Args:
+        config_path: Path to configuration file
+        factory: Agent factory instance
+        debug: Whether to show debug output
+
+    Returns:
+        Dictionary of agent name to Agent instance
+    """
+    available_agents: dict[str, Agent] = {}
+
+    if not config_path.exists():
+        return available_agents
+
+    try:
+        config_manager = ConfigManager(config_path)
+        config_manager.load()
+        configured_agents = config_manager.get("agents", [])
+
+        if configured_agents:
+            console.print("[blue]Loading configured agents from .cocode/config.json...[/blue]")
+            for agent_config in configured_agents:
+                agent_name = agent_config.get("name")
+                if agent_name:
+                    try:
+                        # Create agent instance with configuration from init
+                        config_override = {}
+                        if agent_config.get("command"):
+                            config_override["command"] = agent_config["command"]
+                        if agent_config.get("args"):
+                            config_override["args"] = agent_config["args"]
+
+                        agent = factory.create_agent(
+                            agent_name,
+                            config_override=config_override if config_override else None,
+                            validate_dependencies=True,
+                        )
+                        available_agents[agent_name] = agent
+                        if debug:
+                            console.print(f"[dim]Loaded {agent_name} from config[/dim]")
+                    except AgentFactoryError as e:
+                        console.print(
+                            f"[yellow]Warning: Could not initialize {agent_name}: {e}[/yellow]"
+                        )
+                        if debug:
+                            console.print(f"[dim]{e}[/dim]")
+    except (FileNotFoundError, PermissionError) as e:
+        console.print(f"[yellow]Warning: Could not access configuration file: {e}[/yellow]")
+    except (json.JSONDecodeError, KeyError, ValueError) as e:
+        console.print(f"[yellow]Warning: Invalid configuration format: {e}[/yellow]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Unexpected error loading configuration: {e}[/yellow]")
+
+    return available_agents
 
 
 def run_command(
@@ -60,9 +121,6 @@ def run_command(
 
         # Load configuration to get configured agents
         config_path = Path(".cocode/config.json")
-        config_manager = ConfigManager(config_path)
-
-        available_agents: dict[str, Agent] = {}
 
         # Check if configuration exists, if not prompt to run init
         if not config_path.exists():
@@ -114,44 +172,8 @@ def run_command(
                 console.print("\nThen run 'cocode init' to configure agents.")
                 raise typer.Exit(ExitCode.MISSING_DEPS)
 
-        # Try to load configured agents first
-        if config_path.exists():
-            try:
-                config_manager.load()
-                configured_agents = config_manager.get("agents", [])
-
-                if configured_agents:
-                    console.print(
-                        "[blue]Loading configured agents from .cocode/config.json...[/blue]"
-                    )
-                    for agent_config in configured_agents:
-                        agent_name = agent_config.get("name")
-                        if agent_name:
-                            try:
-                                # Create agent instance with configuration from init
-                                config_override = {}
-                                if agent_config.get("command"):
-                                    config_override["command"] = agent_config["command"]
-                                if agent_config.get("args"):
-                                    config_override["args"] = agent_config["args"]
-
-                                agent = factory.create_agent(
-                                    agent_name,
-                                    config_override=config_override if config_override else None,
-                                    validate_dependencies=True,
-                                )
-                                available_agents[agent_name] = agent
-                                if debug:
-                                    console.print(f"[dim]Loaded {agent_name} from config[/dim]")
-                            except AgentFactoryError as e:
-                                console.print(
-                                    f"[yellow]Warning: Could not initialize {agent_name}: {e}[/yellow]"
-                                )
-                                if debug:
-                                    console.print(f"[dim]{e}[/dim]")
-            except Exception as e:
-                console.print(f"[yellow]Warning: Could not load configuration: {e}[/yellow]")
-                console.print("[yellow]Falling back to agent discovery...[/yellow]")
+        # Try to load configured agents
+        available_agents = load_configured_agents(config_path, factory, debug)
 
         # If no configured agents loaded, offer to re-run init
         if not available_agents:
@@ -178,31 +200,7 @@ def run_command(
 
                     # Reload configuration
                     console.print("\n[blue]Reloading configuration...[/blue]")
-                    config_manager = ConfigManager(config_path)
-                    config_manager.load()
-                    configured_agents = config_manager.get("agents", [])
-
-                    # Try to load agents again
-                    for agent_config in configured_agents:
-                        agent_name = agent_config.get("name")
-                        if agent_name:
-                            try:
-                                config_override = {}
-                                if agent_config.get("command"):
-                                    config_override["command"] = agent_config["command"]
-                                if agent_config.get("args"):
-                                    config_override["args"] = agent_config["args"]
-
-                                agent = factory.create_agent(
-                                    agent_name,
-                                    config_override=config_override if config_override else None,
-                                    validate_dependencies=True,
-                                )
-                                available_agents[agent_name] = agent
-                            except AgentFactoryError as e:
-                                console.print(
-                                    f"[yellow]Warning: Could not initialize {agent_name}: {e}[/yellow]"
-                                )
+                    available_agents = load_configured_agents(config_path, factory, debug)
 
         if not available_agents:
             console.print("\n[red]No agents could be initialized.[/red]")
