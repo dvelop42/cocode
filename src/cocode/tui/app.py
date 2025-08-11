@@ -17,6 +17,9 @@ from cocode.tui.agent_panel import AgentPanel
 class CocodeApp(App):
     """Main TUI application for monitoring agents."""
 
+    # Configuration constants
+    DEFAULT_UPDATE_INTERVAL = 0.5  # seconds, can be made configurable via settings in future
+
     CSS = """
     .dry-run-indicator {
         background: $warning;
@@ -36,8 +39,23 @@ class CocodeApp(App):
         padding: 1;
     }
 
+    AgentPanel:focus {
+        border: thick $accent;
+    }
+
     AgentPanel.selected {
-        border: solid $success;
+        border: thick $accent;
+        background: $boost;
+    }
+
+    AgentPanel.selected.failed {
+        border: thick $error;
+        background: $boost;
+    }
+
+    AgentPanel.selected.ready {
+        border: thick $success;
+        background: $boost;
     }
 
     AgentPanel.failed {
@@ -57,13 +75,10 @@ class CocodeApp(App):
         Binding("q", "quit", "Quit"),
         Binding("r", "restart_agent", "Restart"),
         Binding("s", "stop_agent", "Stop"),
-        Binding("left", "previous_agent", "Previous", show=False),
-        Binding("right", "next_agent", "Next", show=False),
-        Binding("1", "select_agent(0)", "Agent 1", show=False),
-        Binding("2", "select_agent(1)", "Agent 2", show=False),
-        Binding("3", "select_agent(2)", "Agent 3", show=False),
-        Binding("4", "select_agent(3)", "Agent 4", show=False),
-        Binding("5", "select_agent(4)", "Agent 5", show=False),
+        Binding("left", "previous_agent", "Previous"),
+        Binding("right", "next_agent", "Next"),
+        Binding("tab", "next_agent", "Next Agent"),
+        Binding("shift+tab", "previous_agent", "Prev Agent"),
     ]
 
     # Reactive attributes
@@ -77,6 +92,7 @@ class CocodeApp(App):
         issue_body: str = "",
         issue_url: str = "",
         dry_run: bool = False,
+        update_interval: float | None = None,
         **kwargs: object,
     ) -> None:
         """Initialize the app.
@@ -87,6 +103,7 @@ class CocodeApp(App):
             issue_body: Issue body content
             issue_url: URL to the GitHub issue
             dry_run: Whether the app is in dry run mode.
+            update_interval: Optional update interval in seconds (defaults to DEFAULT_UPDATE_INTERVAL)
             **kwargs: Additional arguments for App.
         """
         super().__init__(**kwargs)
@@ -95,6 +112,7 @@ class CocodeApp(App):
         self.issue_body = issue_body
         self.issue_url = issue_url
         self.dry_run = dry_run
+        self.update_interval = update_interval or self.DEFAULT_UPDATE_INTERVAL
         self.agent_panels: list[AgentPanel] = []
         self.update_task: asyncio.Task[None] | None = None
 
@@ -135,9 +153,16 @@ class CocodeApp(App):
         else:
             self.title = "Cocode"
 
-        # Select first agent if available
+        # Select and focus first agent if available
         if self.agent_panels:
             self.agent_panels[0].set_selected(True)
+            self.agent_panels[0].focus()
+
+            # Dynamically bind number keys for agent selection (up to 9 agents)
+            for i, panel in enumerate(self.agent_panels[:9], 1):
+                self.bind(
+                    str(i), f"select_agent({i-1})", description=f"Agent {i}: {panel.agent_name}"
+                )
 
         # Start update loop only if we have an event loop (not in tests)
         try:
@@ -163,7 +188,7 @@ class CocodeApp(App):
                         elif info.state == AgentState.READY:
                             panel.add_class("ready")
 
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(self.update_interval)
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -232,6 +257,9 @@ class CocodeApp(App):
         self.agent_panels[self.selected_agent_index].set_selected(False)
         self.selected_agent_index = (self.selected_agent_index + 1) % len(self.agent_panels)
         self.agent_panels[self.selected_agent_index].set_selected(True)
+        # Ensure the selected panel is visible and focused
+        self.agent_panels[self.selected_agent_index].focus()
+        self.agent_panels[self.selected_agent_index].scroll_visible()
 
     def action_previous_agent(self) -> None:
         """Select the previous agent."""
@@ -241,6 +269,9 @@ class CocodeApp(App):
         self.agent_panels[self.selected_agent_index].set_selected(False)
         self.selected_agent_index = (self.selected_agent_index - 1) % len(self.agent_panels)
         self.agent_panels[self.selected_agent_index].set_selected(True)
+        # Ensure the selected panel is visible and focused
+        self.agent_panels[self.selected_agent_index].focus()
+        self.agent_panels[self.selected_agent_index].scroll_visible()
 
     def action_select_agent(self, index: int) -> None:
         """Select an agent by index.
@@ -254,6 +285,9 @@ class CocodeApp(App):
         self.agent_panels[self.selected_agent_index].set_selected(False)
         self.selected_agent_index = index
         self.agent_panels[self.selected_agent_index].set_selected(True)
+        # Ensure the selected panel is visible and focused
+        self.agent_panels[self.selected_agent_index].focus()
+        self.agent_panels[self.selected_agent_index].scroll_visible()
 
     def start_all_agents(self) -> None:
         """Start all registered agents."""
