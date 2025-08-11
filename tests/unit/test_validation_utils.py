@@ -17,7 +17,10 @@ def test_validate_issue_number():
     assert validate_issue_number(9999) is True
     assert validate_issue_number(0) is False
     assert validate_issue_number(-5) is False
-    # non-int values should be False (bools are ints in Python and thus considered valid)
+    # Booleans should be rejected even though bool is subclass of int
+    assert validate_issue_number(True) is False  # type: ignore[arg-type]
+    assert validate_issue_number(False) is False  # type: ignore[arg-type]
+    # non-int values should be False
     assert validate_issue_number("3") is False  # type: ignore[arg-type]
 
 

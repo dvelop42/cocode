@@ -13,7 +13,7 @@ def validate_issue_number(issue: int) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    return isinstance(issue, int) and issue > 0
+    return isinstance(issue, int) and not isinstance(issue, bool) and issue > 0
 
 
 def sanitize_branch_name(name: str) -> str:

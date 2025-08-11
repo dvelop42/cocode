@@ -44,12 +44,12 @@ def test_which_agent_prefers_first_alias(monkeypatch):
 def test_list_available_agents_names_only(monkeypatch):
     # Pretend claude-code is available, codex is not
     def fake_which(cmd: str):
-        if cmd == "claude-code":
-            return "/usr/local/bin/claude-code"
+        if cmd == "claude":
+            return "/usr/local/bin/claude"
         return None
 
     monkeypatch.setattr("shutil.which", fake_which)
 
     names = list_available_agents()
     assert "codex-cli" not in names
-    assert "claude-code" not in names
+    assert "claude-code" in names
