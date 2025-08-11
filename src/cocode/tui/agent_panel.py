@@ -14,6 +14,9 @@ from cocode.agents.lifecycle import AgentState
 class AgentPanel(Static):
     """Panel for displaying agent status and logs."""
 
+    # Configuration constants
+    MAX_LOG_LINES = 500  # Maximum number of log lines to keep in memory
+
     can_focus = True
     state = reactive(AgentState.IDLE)
     last_update = reactive(datetime.now())
@@ -39,7 +42,7 @@ class AgentPanel(Static):
         with Vertical():
             yield Static(self._format_title(), id=f"title-{self.agent_name}")
             yield Static(self._format_state(), id=f"status-{self.agent_name}")
-            yield Log(id=f"log-{self.agent_name}", auto_scroll=True, max_lines=500)
+            yield Log(id=f"log-{self.agent_name}", auto_scroll=True, max_lines=self.MAX_LOG_LINES)
 
     def _format_title(self) -> str:
         """Format the title with selection indicator."""

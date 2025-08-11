@@ -22,6 +22,31 @@ from cocode.utils.exit_codes import ExitCode
 console = Console()
 
 
+def prompt_and_run_init(ctx: Context, force: bool = False) -> bool:
+    """Prompt user to run init and execute if confirmed.
+
+    Args:
+        ctx: Typer context
+        force: Whether to force overwrite existing configuration
+
+    Returns:
+        True if init was run successfully, False otherwise
+    """
+    from cocode.cli.init import init_command
+
+    console.print("\n[blue]Starting initialization...[/blue]\n")
+
+    try:
+        # Run init in interactive mode
+        # Pass the context object directly
+        init_command(interactive=True, force=force, ctx=ctx)
+        return True
+    except typer.Exit:
+        # init_command raises Exit on success or failure
+        # Check if config was actually created
+        return Path(".cocode/config.json").exists()
+
+
 def load_configured_agents(
     config_path: Path, factory: AgentFactory, debug: bool = False
 ) -> dict[str, Agent]:
@@ -139,26 +164,12 @@ def run_command(
                 # Prompt to run init
                 console.print("\nWould you like to initialize cocode now?")
                 if Confirm.ask("Run 'cocode init'", default=True):
-                    # Import and run init command
-                    from cocode.cli.init import init_command
-
-                    console.print("\n[blue]Starting initialization...[/blue]\n")
-
-                    try:
-                        # Run init in interactive mode
-                        # Pass the context object directly, not a new Context
-                        init_command(interactive=True, force=False, ctx=ctx)
-                    except typer.Exit:
-                        # init_command raises Exit on success, continue to load config
-                        pass
-
-                    # Check if config was created
-                    if not config_path.exists():
+                    if prompt_and_run_init(ctx, force=False):
+                        console.print("\n[green]✓ Configuration created successfully![/green]")
+                        console.print(f"\n[blue]Continuing with issue #{issue}...[/blue]\n")
+                    else:
                         console.print("\n[red]Configuration was not created. Exiting.[/red]")
                         raise typer.Exit(ExitCode.GENERAL_ERROR)
-
-                    console.print("\n[green]✓ Configuration created successfully![/green]")
-                    console.print(f"\n[blue]Continuing with issue #{issue}...[/blue]\n")
                 else:
                     console.print(
                         "\n[yellow]Please run 'cocode init' to configure agents first.[/yellow]"
@@ -187,20 +198,10 @@ def run_command(
                 console.print("  • The configuration file is corrupted")
 
                 if Confirm.ask("\nWould you like to reconfigure cocode?", default=True):
-                    from cocode.cli.init import init_command
-
-                    console.print("\n[blue]Starting reconfiguration...[/blue]\n")
-
-                    try:
-                        # Run init with force flag to overwrite
-                        # Pass the context object directly
-                        init_command(interactive=True, force=True, ctx=ctx)
-                    except typer.Exit:
-                        pass
-
-                    # Reload configuration
-                    console.print("\n[blue]Reloading configuration...[/blue]")
-                    available_agents = load_configured_agents(config_path, factory, debug)
+                    if prompt_and_run_init(ctx, force=True):
+                        # Reload configuration
+                        console.print("\n[blue]Reloading configuration...[/blue]")
+                        available_agents = load_configured_agents(config_path, factory, debug)
 
         if not available_agents:
             console.print("\n[red]No agents could be initialized.[/red]")
