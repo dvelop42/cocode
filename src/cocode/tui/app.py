@@ -12,6 +12,8 @@ from textual.widgets import Footer, Header, Static
 from cocode.agents.base import AgentStatus
 from cocode.agents.lifecycle import AgentLifecycleManager, AgentState
 from cocode.tui.agent_panel import AgentPanel
+from cocode.tui.confirm_quit import ConfirmQuitScreen
+from cocode.tui.help_overlay import HelpScreen
 from cocode.tui.overview_panel import OverviewPanel
 
 
@@ -123,20 +125,31 @@ class CocodeApp(App):
         dock: bottom;
         height: 1;
     }
+
+    .key-hint {
+        dock: bottom;
+        height: 1;
+        background: $panel;
+        color: $primary-lighten-3;
+        padding: 0 1;
+    }
     """
 
     BINDINGS = [
-        Binding("q", "quit", "Quit"),
+        Binding("q", "request_quit", "Quit"),
+        Binding("ctrl+c", "quit", "Quit Now"),
         Binding("r", "restart_agent", "Restart"),
         Binding("s", "stop_agent", "Stop"),
         Binding("left", "previous_agent", "Previous"),
         Binding("right", "next_agent", "Next"),
         Binding("tab", "next_agent", "Next Agent"),
         Binding("shift+tab", "previous_agent", "Prev Agent"),
-        Binding("ctrl+up", "resize_pane_up", "Grow Top Pane"),
-        Binding("ctrl+down", "resize_pane_down", "Grow Bottom Pane"),
-        Binding("ctrl+o", "focus_overview", "Focus Overview"),
-        Binding("ctrl+a", "focus_agents", "Focus Agents"),
+        # Focus panes with Up/Down for simplicity
+        Binding("up", "focus_overview", "Focus Overview"),
+        Binding("down", "focus_agents", "Focus Agents"),
+        # Scrolling / resizing removed for now
+        # Help overlay
+        Binding("?", "show_help", "Help"),
     ]
 
     # Reactive attributes
@@ -216,6 +229,7 @@ class CocodeApp(App):
                         )
 
         yield Footer()
+        yield Static("Press ? for help — q to quit", classes="key-hint", id="key-hint")
 
     def on_mount(self) -> None:
         """Called when app is mounted."""
@@ -368,46 +382,60 @@ class CocodeApp(App):
         self.agent_panels[self.selected_agent_index].focus()
         self.agent_panels[self.selected_agent_index].scroll_visible()
 
-    def action_resize_pane_up(self) -> None:
-        """Increase the top pane size (decrease bottom pane)."""
-        new_height = self.top_pane_height + 5
-        if new_height <= self.MAX_PANE_HEIGHT:
-            self.top_pane_height = new_height
-            self._update_pane_sizes()
-
-    def action_resize_pane_down(self) -> None:
-        """Decrease the top pane size (increase bottom pane)."""
-        new_height = self.top_pane_height - 5
-        if new_height >= self.MIN_PANE_HEIGHT:
-            self.top_pane_height = new_height
-            self._update_pane_sizes()
+    # Pane resize actions removed for now
 
     def action_focus_overview(self) -> None:
         """Focus the overview panel."""
         if self.overview_panel:
             self.overview_panel.focus()
-            # Remove selection from agents when focusing overview
-            if self.agent_panels and self.selected_agent_index < len(self.agent_panels):
-                self.agent_panels[self.selected_agent_index].remove_class("focused")
 
     def action_focus_agents(self) -> None:
         """Focus the agent panels."""
         if self.agent_panels:
             self.agent_panels[self.selected_agent_index].focus()
-            # Add focused class to indicate active pane
-            self.agent_panels[self.selected_agent_index].add_class("focused")
+            # Selection state already indicates active pane
 
-    def _update_pane_sizes(self) -> None:
-        """Update the CSS for pane sizes based on current settings."""
-        top_pane = self.query_one("#top-pane")
-        bottom_pane = self.query_one("#bottom-pane")
+    def action_scroll_up(self) -> None:
+        """Scroll the currently focused pane up."""
+        try:
+            if self.overview_panel and self.overview_panel.has_focus:
+                scroll = self.query_one("#top-pane", VerticalScroll)
+            else:
+                scroll = self.query_one("#bottom-pane", VerticalScroll)
+            scroll.scroll_up()
+        except Exception:
+            # Ignore if widgets not mounted yet
+            pass
 
-        # Calculate actual heights
-        bottom_height = 100 - self.top_pane_height
+    def action_scroll_down(self) -> None:
+        """Scroll the currently focused pane down."""
+        try:
+            if self.overview_panel and self.overview_panel.has_focus:
+                scroll = self.query_one("#top-pane", VerticalScroll)
+            else:
+                scroll = self.query_one("#bottom-pane", VerticalScroll)
+            scroll.scroll_down()
+        except Exception:
+            pass
 
-        # Update styles
-        top_pane.styles.height = f"{self.top_pane_height}%"
-        bottom_pane.styles.height = f"{bottom_height}%"
+    def action_show_help(self) -> None:
+        """Show the help overlay with keyboard shortcuts."""
+        self.push_screen(HelpScreen())
+
+    def action_request_quit(self) -> None:
+        """Ask for confirmation before quitting.
+
+        Uses a callback to avoid awaiting on the UI thread,
+        which would require a worker per Textual's API.
+        """
+        self.push_screen(ConfirmQuitScreen(), callback=self._on_confirm_quit)
+
+    def _on_confirm_quit(self, result: bool | None) -> None:
+        if result:
+            # on_shutdown will be invoked during exit
+            self.exit()
+
+    # Pane size update logic removed with resize actions
 
     def start_all_agents(self) -> None:
         """Start all registered agents."""
