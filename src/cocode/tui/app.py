@@ -7,12 +7,13 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.reactive import reactive
-from textual.widgets import Footer, Header, Static
+from textual.widgets import Footer, Static
 
 from cocode.agents.base import AgentStatus
 from cocode.agents.lifecycle import AgentLifecycleManager, AgentState
 from cocode.tui.agent_panel import AgentPanel
 from cocode.tui.confirm_quit import ConfirmQuitScreen
+from cocode.tui.header import CocodeHeader
 from cocode.tui.help_overlay import HelpScreen
 from cocode.tui.overview_panel import OverviewPanel
 
@@ -24,13 +25,6 @@ class CocodeApp(App):
     DEFAULT_UPDATE_INTERVAL = 0.5  # seconds, can be made configurable via settings in future
 
     CSS = """
-    .dry-run-indicator {
-        background: $warning;
-        color: $warning-lighten-3;
-        dock: top;
-        height: 1;
-    }
-
     .content {
         height: 1fr;
     }
@@ -193,14 +187,12 @@ class CocodeApp(App):
 
     def compose(self) -> ComposeResult:
         """Compose the TUI layout."""
-        yield Header()
-
-        if self.dry_run:
-            yield Static(
-                "🔍 DRY RUN MODE - No changes will be made",
-                classes="dry-run-indicator",
-                id="dry-run-indicator",
-            )
+        # Use custom header with issue info
+        yield CocodeHeader(
+            issue_number=self.issue_number,
+            issue_title="",  # Will be fetched if needed
+            dry_run=self.dry_run,
+        )
 
         with Container(classes="content"):
             # Top pane with overview
