@@ -34,7 +34,7 @@ class SyncResult:
 
     status: SyncStatus
     worktree_path: Path
-    conflicts: list[str] = None
+    conflicts: list[str] | None = None
     conflict_type: ConflictType | None = None
     stash_ref: str | None = None
     message: str = ""
