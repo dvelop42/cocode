@@ -52,8 +52,8 @@ class WorktreeManager:
         try:
             resolved_path = path.resolve()
             allowed_parent = self.repo_path.parent.resolve()
-            # Path must be directly in the repository's parent directory
-            return resolved_path.parent == allowed_parent
+            # Allow any path under the repo's parent directory
+            return resolved_path.is_relative_to(allowed_parent)
         except (ValueError, RuntimeError):
             return False
 

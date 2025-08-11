@@ -51,6 +51,11 @@ class AgentLifecycleInfo:
 class AgentLifecycleManager:
     """Manages the lifecycle of multiple agents."""
 
+    # Timeout constants
+    STOP_TIMEOUT_SECONDS = 5
+    FORCE_STOP_TIMEOUT_SECONDS = 1
+    RESTART_WAIT_SECONDS = 5
+
     def __init__(
         self,
         max_concurrent_agents: int = 5,
@@ -235,10 +240,12 @@ class AgentLifecycleManager:
                 info.state = AgentState.FAILED
                 info.error = str(e)
         finally:
+            completion_event: threading.Event | None = None
             with self._lock:
                 self._running_count -= 1
-                if info.completion_event:
-                    info.completion_event.set()
+                completion_event = info.completion_event
+            if completion_event is not None:
+                completion_event.set()
 
     def stop_agent(self, agent_name: str, force: bool = False) -> bool:
         """Stop a running agent.
@@ -273,7 +280,9 @@ class AgentLifecycleManager:
                 pass
 
             # Wait for thread to exit
-            info.thread.join(timeout=5 if not force else 1)
+            info.thread.join(
+                timeout=(self.FORCE_STOP_TIMEOUT_SECONDS if force else self.STOP_TIMEOUT_SECONDS)
+            )
             if info.thread.is_alive():
                 stopped = False
 
@@ -329,7 +338,7 @@ class AgentLifecycleManager:
         if info.state in (AgentState.RUNNING, AgentState.STARTING):
             self.stop_agent(agent_name)
             if info.completion_event:
-                info.completion_event.wait(timeout=5)
+                info.completion_event.wait(timeout=self.RESTART_WAIT_SECONDS)
 
         # Start again
         return self.start_agent(
