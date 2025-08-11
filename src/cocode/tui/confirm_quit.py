@@ -1,10 +1,10 @@
 """Confirmation modal for quitting the application."""
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Vertical
 from textual.events import Key
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label
+from textual.widgets import Label
 
 
 class ConfirmQuitScreen(ModalScreen[bool]):
@@ -17,15 +17,11 @@ class ConfirmQuitScreen(ModalScreen[bool]):
 
     .dialog {
         border: round $error;
-        width: 60%;
-        max-width: 80;
+        width: 40%;
+        max-width: 60;
         background: $panel;
         padding: 1 2;
-    }
-
-    .buttons {
         content-align: center middle;
-        margin-top: 1;
     }
     """
 
@@ -33,15 +29,10 @@ class ConfirmQuitScreen(ModalScreen[bool]):
         with Vertical(classes="dialog"):
             yield Label("[bold]Quit cocode?[/bold]")
             yield Label("All running agents will be asked to stop.")
-            with Horizontal(classes="buttons"):
-                yield Button("Yes", variant="error", id="yes")
-                yield Button("No", variant="primary", id="no")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(event.button.id == "yes")
+            yield Label("Press [bold]Y[/bold] to confirm or [bold]N[/bold]/Esc to cancel.")
 
     def on_key(self, event: Key) -> None:
-        key = event.key
+        key = event.key.lower()
         if key in {"escape", "n"}:
             self.dismiss(False)
         elif key in {"enter", "y"}:

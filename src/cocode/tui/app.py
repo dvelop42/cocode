@@ -136,17 +136,15 @@ class CocodeApp(App):
         Binding("right", "next_agent", "Next"),
         Binding("tab", "next_agent", "Next Agent"),
         Binding("shift+tab", "previous_agent", "Prev Agent"),
+        # Focus panes with Up/Down for simplicity
+        Binding("up", "focus_overview", "Focus Overview"),
+        Binding("down", "focus_agents", "Focus Agents"),
+        # Scroll highlighted pane with Shift+Up/Down
+        Binding("shift+up", "scroll_up", "Scroll Up"),
+        Binding("shift+down", "scroll_down", "Scroll Down"),
+        # Resize panes with Ctrl+Up/Down
         Binding("ctrl+up", "resize_pane_up", "Grow Top Pane"),
         Binding("ctrl+down", "resize_pane_down", "Grow Bottom Pane"),
-        Binding("ctrl+o", "focus_overview", "Focus Overview"),
-        Binding("ctrl+a", "focus_agents", "Focus Agents"),
-        # Vim-like bindings
-        Binding("h", "previous_agent", "Prev (vim)"),
-        Binding("l", "next_agent", "Next (vim)"),
-        Binding("j", "focus_agents", "Focus Agents (vim)"),
-        Binding("k", "focus_overview", "Focus Overview (vim)"),
-        Binding("g", "first_agent", "First Agent (vim)"),
-        Binding("G", "last_agent", "Last Agent (vim)"),
         # Help overlay
         Binding("?", "show_help", "Help"),
     ]
@@ -405,27 +403,44 @@ class CocodeApp(App):
             self.agent_panels[self.selected_agent_index].focus()
             # Selection state already indicates active pane
 
-    def action_first_agent(self) -> None:
-        """Select the first agent (vim 'g')."""
-        if not self.agent_panels:
-            return
-        self.action_select_agent(0)
+    def action_scroll_up(self) -> None:
+        """Scroll the currently focused pane up."""
+        try:
+            if self.overview_panel and self.overview_panel.has_focus:
+                scroll = self.query_one("#top-pane", VerticalScroll)
+            else:
+                scroll = self.query_one("#bottom-pane", VerticalScroll)
+            scroll.scroll_up()
+        except Exception:
+            # Ignore if widgets not mounted yet
+            pass
 
-    def action_last_agent(self) -> None:
-        """Select the last agent (vim 'G')."""
-        if not self.agent_panels:
-            return
-        self.action_select_agent(len(self.agent_panels) - 1)
+    def action_scroll_down(self) -> None:
+        """Scroll the currently focused pane down."""
+        try:
+            if self.overview_panel and self.overview_panel.has_focus:
+                scroll = self.query_one("#top-pane", VerticalScroll)
+            else:
+                scroll = self.query_one("#bottom-pane", VerticalScroll)
+            scroll.scroll_down()
+        except Exception:
+            pass
 
     def action_show_help(self) -> None:
         """Show the help overlay with keyboard shortcuts."""
         self.push_screen(HelpScreen())
 
-    async def action_request_quit(self) -> None:
-        """Ask for confirmation before quitting."""
-        result = await self.push_screen_wait(ConfirmQuitScreen())
+    def action_request_quit(self) -> None:
+        """Ask for confirmation before quitting.
+
+        Uses a callback to avoid awaiting on the UI thread,
+        which would require a worker per Textual's API.
+        """
+        self.push_screen(ConfirmQuitScreen(), callback=self._on_confirm_quit)
+
+    def _on_confirm_quit(self, result: bool | None) -> None:
         if result:
-            await self.shutdown()  # ensure cleanup via on_shutdown
+            # on_shutdown will be invoked during exit
             self.exit()
 
     def _update_pane_sizes(self) -> None:
