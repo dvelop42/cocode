@@ -101,10 +101,48 @@ def load_configured_agents(
         console.print(f"[yellow]Warning: Could not access configuration file: {e}[/yellow]")
     except (json.JSONDecodeError, KeyError, ValueError) as e:
         console.print(f"[yellow]Warning: Invalid configuration format: {e}[/yellow]")
-    except Exception as e:
-        console.print(f"[yellow]Warning: Unexpected error loading configuration: {e}[/yellow]")
 
     return available_agents
+
+
+def _print_dry_run(issue: int, agents: list[str] | None) -> None:
+    console.print("\n[bold yellow]🔍 DRY RUN MODE - No changes will be made[/bold yellow]\n")
+    console.print(f"[yellow]Would run agents on issue #{issue}[/yellow]")
+    if agents:
+        console.print(f"[yellow]Selected agents: {', '.join(agents)}[/yellow]")
+    console.print("\n[yellow]Operations that would be performed:[/yellow]")
+    console.print("  1. Fetch issue details from GitHub")
+    console.print("  2. Create worktrees for each agent")
+    console.print("  3. Run agents with issue context")
+    console.print("  4. Monitor agent progress")
+    console.print("  5. Create pull request with selected solution")
+
+
+def _select_agents(available: dict[str, Agent], requested: list[str] | None) -> dict[str, Agent]:
+    if not requested:
+        return available
+    selected = {name: agent for name, agent in available.items() if name in requested}
+    return selected
+
+
+def _make_cli_callbacks(
+    name: str,
+) -> tuple[Callable[[str], None], Callable[[str], None], Callable[[AgentStatus], None]]:
+    def on_stdout(line: str) -> None:
+        console.print(f"[dim]{name}:[/dim] {line}")
+
+    def on_stderr(line: str) -> None:
+        console.print(f"[dim]{name}:[/dim] [red]{line}[/red]")
+
+    def on_completion(status: AgentStatus) -> None:
+        if status.ready:
+            console.print(f"[green]{name}: Agent ready![/green]")
+        elif status.exit_code == 0:
+            console.print(f"[green]{name}: Completed successfully[/green]")
+        else:
+            console.print(f"[red]{name}: Failed - {status.error_message}[/red]")
+
+    return on_stdout, on_stderr, on_completion
 
 
 def run_command(
@@ -117,18 +155,8 @@ def run_command(
     """Run agents to fix a GitHub issue."""
     # Check for dry run mode
     dry_run = ctx.obj.get("dry_run", False) if ctx.obj else False
-
     if dry_run:
-        console.print("\n[bold yellow]🔍 DRY RUN MODE - No changes will be made[/bold yellow]\n")
-        console.print(f"[yellow]Would run agents on issue #{issue}[/yellow]")
-        if agents:
-            console.print(f"[yellow]Selected agents: {', '.join(agents)}[/yellow]")
-        console.print("\n[yellow]Operations that would be performed:[/yellow]")
-        console.print("  1. Fetch issue details from GitHub")
-        console.print("  2. Create worktrees for each agent")
-        console.print("  3. Run agents with issue context")
-        console.print("  4. Monitor agent progress")
-        console.print("  5. Create pull request with selected solution")
+        _print_dry_run(issue, agents)
         raise typer.Exit(ExitCode.SUCCESS)
 
     try:
@@ -212,15 +240,10 @@ def run_command(
             raise typer.Exit(ExitCode.GENERAL_ERROR)
 
         # Filter agents if specified
-        if agents:
-            selected_agents = {
-                name: agent for name, agent in available_agents.items() if name in agents
-            }
-            if not selected_agents:
-                console.print(f"[red]None of the specified agents found: {', '.join(agents)}[/red]")
-                raise typer.Exit(ExitCode.GENERAL_ERROR)
-        else:
-            selected_agents = available_agents
+        selected_agents = _select_agents(available_agents, agents)
+        if agents and not selected_agents:
+            console.print(f"[red]None of the specified agents found: {', '.join(agents)}[/red]")
+            raise typer.Exit(ExitCode.GENERAL_ERROR)
 
         console.print(f"[green]Selected agents: {', '.join(selected_agents.keys())}[/green]")
 
@@ -245,33 +268,7 @@ def run_command(
             console.print("[blue]Starting agents...[/blue]")
 
             for agent_name in selected_agents:
-
-                def make_stdout_callback(name: str) -> Callable:
-                    def callback(line: str) -> None:
-                        console.print(f"[dim]{name}:[/dim] {line}")
-
-                    return callback
-
-                def make_stderr_callback(name: str) -> Callable:
-                    def callback(line: str) -> None:
-                        console.print(f"[dim]{name}:[/dim] [red]{line}[/red]")
-
-                    return callback
-
-                def make_completion_callback(name: str) -> Callable:
-                    def callback(status: AgentStatus) -> None:
-                        if status.ready:
-                            console.print(f"[green]{name}: Agent ready![/green]")
-                        elif status.exit_code == 0:
-                            console.print(f"[green]{name}: Completed successfully[/green]")
-                        else:
-                            console.print(f"[red]{name}: Failed - {status.error_message}[/red]")
-
-                    return callback
-
-                on_stdout = make_stdout_callback(agent_name)
-                on_stderr = make_stderr_callback(agent_name)
-                on_completion = make_completion_callback(agent_name)
+                on_stdout, on_stderr, on_completion = _make_cli_callbacks(agent_name)
                 lifecycle_mgr.start_agent(
                     agent_name,
                     issue,
@@ -319,8 +316,10 @@ def run_command(
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted by user[/yellow]")
-        if "lifecycle_mgr" in locals():
+        try:
             lifecycle_mgr.shutdown_all()
+        except Exception:
+            pass
         raise typer.Exit(ExitCode.INTERRUPTED) from None
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")

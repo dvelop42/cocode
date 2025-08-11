@@ -12,7 +12,8 @@ from pathlib import Path
 from cocode.agents.base import Agent, AgentStatus
 from cocode.utils.exit_codes import ExitCode
 from cocode.utils.subprocess import StreamingSubprocess
-from cocode.utils.tempfile_manager import get_temp_manager
+from cocode.utils.tempfile_manager import TempFileManager
+from cocode.utils.tempfile_manager import get_temp_manager as _compat_get_temp_manager
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +21,17 @@ logger = logging.getLogger(__name__)
 class AgentRunner:
     """Runs agents with proper temp file management."""
 
-    def __init__(self) -> None:
+    def __init__(self, temp_manager: TempFileManager | None = None) -> None:
         """Initialize the agent runner.
 
-        Uses the global TempFileManager singleton for consistent
-        temp file management across the application.
+        Accepts a TempFileManager instance for easier testing and reduced
+        global state coupling.
         """
-        self.temp_manager = get_temp_manager()
+        # Maintain backward compatibility with tests expecting a module-level
+        # get_temp_manager() used by the runner.
+        self.temp_manager = temp_manager or get_temp_manager()
+        self._active: dict[str, StreamingSubprocess] = {}
+        self._lock = __import__("threading").Lock()
 
     def run_agent(
         self,
@@ -95,6 +100,10 @@ class AgentRunner:
             )
 
             try:
+                # Track active process for cancellation support
+                with self._lock:
+                    self._active[agent.name] = streaming_proc
+
                 exit_code = streaming_proc.run(
                     stdout_callback=collect_output,
                     stderr_callback=handle_stderr,
@@ -136,6 +145,20 @@ class AgentRunner:
         finally:
             # Cleanup temp file (optional - will be cleaned on exit anyway)
             self.temp_manager.cleanup_file(issue_body_file)
+            with self._lock:
+                self._active.pop(agent.name, None)
+
+    def cancel_agent(self, name: str) -> bool:
+        """Request cancellation of a running agent process."""
+        with self._lock:
+            proc = self._active.get(name)
+        if proc is None:
+            return False
+        try:
+            proc.cancel()
+            return True
+        except Exception:
+            return False
 
     def _prepare_safe_environment(
         self, worktree_path: Path, issue_number: int, issue_url: str, issue_body_file: Path
@@ -199,3 +222,8 @@ class AgentRunner:
         to free resources early.
         """
         self.temp_manager.cleanup_all()
+
+
+# Backwards-compatibility shim for tests that patch this symbol
+def get_temp_manager() -> TempFileManager:  # pragma: no cover - test shim
+    return _compat_get_temp_manager()

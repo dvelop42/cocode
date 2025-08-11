@@ -208,19 +208,7 @@ class CocodeApp(App):
         selected_panel.add_log_line("[yellow]Restarting agent...[/yellow]")
 
         # Restart agent
-        def on_stdout(line: str) -> None:
-            selected_panel.add_log_line(line)
-
-        def on_stderr(line: str) -> None:
-            selected_panel.add_log_line(f"[red]{line}[/red]")
-
-        def on_completion(status: AgentStatus) -> None:
-            if status.ready:
-                selected_panel.add_log_line("[green]Agent ready![/green]")
-            elif status.exit_code == 0:
-                selected_panel.add_log_line("[green]Agent completed successfully[/green]")
-            else:
-                selected_panel.add_log_line(f"[red]Agent failed: {status.error_message}[/red]")
+        on_stdout, on_stderr, on_completion = self._make_panel_callbacks(selected_panel)
 
         success = self.lifecycle_manager.restart_agent(
             agent_name,
@@ -294,32 +282,7 @@ class CocodeApp(App):
         for panel in self.agent_panels:
             agent_name = panel.agent_name
 
-            def make_stdout_callback(p: AgentPanel) -> Callable:
-                def callback(line: str) -> None:
-                    p.add_log_line(line)
-
-                return callback
-
-            def make_stderr_callback(p: AgentPanel) -> Callable:
-                def callback(line: str) -> None:
-                    p.add_log_line(f"[red]{line}[/red]")
-
-                return callback
-
-            def make_completion_callback(p: AgentPanel) -> Callable:
-                def callback(status: AgentStatus) -> None:
-                    if status.ready:
-                        p.add_log_line("[green]Agent ready![/green]")
-                    elif status.exit_code == 0:
-                        p.add_log_line("[green]Agent completed successfully[/green]")
-                    else:
-                        p.add_log_line(f"[red]Agent failed: {status.error_message}[/red]")
-
-                return callback
-
-            on_stdout = make_stdout_callback(panel)
-            on_stderr = make_stderr_callback(panel)
-            on_completion = make_completion_callback(panel)
+            on_stdout, on_stderr, on_completion = self._make_panel_callbacks(panel)
 
             success = self.lifecycle_manager.start_agent(
                 agent_name,
@@ -348,3 +311,24 @@ class CocodeApp(App):
 
         # Shutdown all agents
         self.lifecycle_manager.shutdown_all()
+
+    def _make_panel_callbacks(
+        self, panel: AgentPanel
+    ) -> tuple[Callable[[str], None], Callable[[str], None], Callable[[AgentStatus], None]]:
+        """Create unified stdout/stderr/completion callbacks for a panel."""
+
+        def on_stdout(line: str) -> None:
+            panel.add_log_line(line)
+
+        def on_stderr(line: str) -> None:
+            panel.add_log_line(f"[red]{line}[/red]")
+
+        def on_completion(status: AgentStatus) -> None:
+            if status.ready:
+                panel.add_log_line("[green]Agent ready![/green]")
+            elif status.exit_code == 0:
+                panel.add_log_line("[green]Agent completed successfully[/green]")
+            else:
+                panel.add_log_line(f"[red]Agent failed: {status.error_message}[/red]")
+
+        return on_stdout, on_stderr, on_completion

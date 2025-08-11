@@ -202,8 +202,8 @@ class RepositoryManager:
             )
             if result.returncode == 0:
                 info["remote_url"] = result.stdout.strip()
-        except Exception as e:
-            logger.debug(f"Could not get remote URL: {e}")
+        except FileNotFoundError as e:
+            logger.debug(f"git not found when getting remote URL: {e}")
 
         try:
             result = subprocess.run(
@@ -214,7 +214,7 @@ class RepositoryManager:
             )
             if result.returncode == 0:
                 info["current_branch"] = result.stdout.strip()
-        except Exception as e:
-            logger.debug(f"Could not get current branch: {e}")
+        except FileNotFoundError as e:
+            logger.debug(f"git not found when getting current branch: {e}")
 
         return info

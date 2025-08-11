@@ -176,23 +176,26 @@ class TempFileManager:
         """
         logger.debug("Starting cleanup of all temp files")
 
-        # Clean up directories first (in case they contain tracked files)
-        for temp_dir in list(self._temp_dirs):
+        def _safe_remove(path: Path, is_dir: bool) -> None:
             try:
-                if temp_dir.exists():
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                    logger.debug(f"Cleaned up temp directory: {temp_dir}")
+                if is_dir:
+                    if path.exists():
+                        shutil.rmtree(path, ignore_errors=True)
+                        logger.debug(f"Cleaned up temp directory: {path}")
+                else:
+                    if path.exists():
+                        path.unlink()
+                        logger.debug(f"Cleaned up temp file: {path}")
             except Exception as e:
-                logger.warning(f"Failed to cleanup temp directory {temp_dir}: {e}")
+                kind = "directory" if is_dir else "file"
+                logger.warning(f"Failed to cleanup temp {kind} {path}: {e}")
 
-        # Clean up individual files
+        # Clean directories first, then files
+        for temp_dir in list(self._temp_dirs):
+            _safe_remove(temp_dir, is_dir=True)
+
         for temp_file in list(self._temp_files):
-            try:
-                if temp_file.exists():
-                    temp_file.unlink()
-                    logger.debug(f"Cleaned up temp file: {temp_file}")
-            except Exception as e:
-                logger.warning(f"Failed to cleanup temp file {temp_file}: {e}")
+            _safe_remove(temp_file, is_dir=False)
 
         # Clear all tracking
         self._temp_files.clear()
@@ -206,15 +209,17 @@ class TempFileManager:
         self.cleanup_all()
 
 
-# Global instance for convenience
+__all__ = ["TempFileManager", "get_temp_manager"]
+
+# Backwards-compatible global singleton (deprecated)
 _temp_manager: TempFileManager | None = None
 
 
-def get_temp_manager() -> TempFileManager:
-    """Get the global TempFileManager instance.
+def get_temp_manager() -> TempFileManager:  # pragma: no cover - API compatibility shim
+    """Return a module-level TempFileManager singleton.
 
-    Returns:
-        The global TempFileManager instance
+    Deprecated: prefer injecting a TempFileManager instance where needed.
+    Retained for compatibility with existing callers and tests.
     """
     global _temp_manager
     if _temp_manager is None:
