@@ -140,6 +140,10 @@ class AgentLifecycleManager:
 
             info = self.agents[agent_name]
 
+            if not info:
+                logger.error(f"Agent {agent_name} has no info")
+                return False
+
             # Check if already running
             if info.state in (AgentState.RUNNING, AgentState.STARTING):
                 logger.warning(f"Agent {agent_name} is already running")
@@ -264,6 +268,10 @@ class AgentLifecycleManager:
 
             info = self.agents[agent_name]
 
+            if not info:
+                logger.error(f"Agent {agent_name} has no info")
+                return False
+
             if info.state not in (AgentState.RUNNING, AgentState.STARTING):
                 logger.warning(f"Agent {agent_name} is not running")
                 return False
@@ -335,7 +343,7 @@ class AgentLifecycleManager:
         logger.info(f"Restarting agent {agent_name} (attempt {info.restart_count})")
 
         # Stop if running and wait for completion event
-        if info.state in (AgentState.RUNNING, AgentState.STARTING):
+        if info and info.state in (AgentState.RUNNING, AgentState.STARTING):
             self.stop_agent(agent_name)
             if info.completion_event:
                 info.completion_event.wait(timeout=self.RESTART_WAIT_SECONDS)
@@ -394,7 +402,7 @@ class AgentLifecycleManager:
         """
         with self._lock:
             return any(
-                info.state in (AgentState.RUNNING, AgentState.STARTING)
+                info and info.state in (AgentState.RUNNING, AgentState.STARTING)
                 for info in self.agents.values()
             )
 
@@ -456,7 +464,7 @@ class AgentLifecycleManager:
 
         for agent_name in agent_names:
             info = self.agents[agent_name]
-            if info.state in (AgentState.RUNNING, AgentState.STARTING):
+            if info and info.state in (AgentState.RUNNING, AgentState.STARTING):
                 self.stop_agent(agent_name, force=force)
 
         # Wait for threads to complete (with timeout)
@@ -483,8 +491,11 @@ class AgentLifecycleManager:
 
             info = self.agents[agent_name]
 
-            if info.state in (AgentState.RUNNING, AgentState.STARTING):
+            if info and info.state in (AgentState.RUNNING, AgentState.STARTING):
                 logger.warning(f"Cannot reset running agent {agent_name}")
+                return False
+            elif not info:
+                logger.warning(f"Agent {agent_name} has no info")
                 return False
 
             # Reset state

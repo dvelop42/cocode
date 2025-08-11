@@ -5,13 +5,14 @@ from collections.abc import Callable
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual.reactive import reactive
 from textual.widgets import Footer, Header, Static
 
 from cocode.agents.base import AgentStatus
 from cocode.agents.lifecycle import AgentLifecycleManager, AgentState
 from cocode.tui.agent_panel import AgentPanel
+from cocode.tui.overview_panel import OverviewPanel
 
 
 class CocodeApp(App):
@@ -30,6 +31,53 @@ class CocodeApp(App):
 
     .content {
         height: 1fr;
+    }
+
+    #top-pane {
+        height: 30%;
+        min-height: 8;
+        border-bottom: solid $primary;
+    }
+
+    #bottom-pane {
+        height: 70%;
+        min-height: 10;
+    }
+
+    OverviewPanel {
+        border: solid $primary;
+        height: 100%;
+        padding: 1;
+    }
+
+    OverviewPanel:focus {
+        border: thick $accent;
+    }
+
+    .issue-header {
+        margin: 1;
+    }
+
+    .issue-url {
+        margin-left: 1;
+        margin-bottom: 1;
+    }
+
+    .separator {
+        margin: 1 0;
+        color: $primary-lighten-2;
+    }
+
+    .section-header {
+        margin: 1;
+        color: $accent;
+    }
+
+    #issue-content {
+        margin: 1;
+        height: auto;
+        max-height: 50%;
+        border: none;
     }
 
     AgentPanel {
@@ -69,6 +117,12 @@ class CocodeApp(App):
     #agent-container {
         height: 100%;
     }
+
+    .pane-resizer {
+        background: $primary;
+        dock: bottom;
+        height: 1;
+    }
     """
 
     BINDINGS = [
@@ -79,11 +133,18 @@ class CocodeApp(App):
         Binding("right", "next_agent", "Next"),
         Binding("tab", "next_agent", "Next Agent"),
         Binding("shift+tab", "previous_agent", "Prev Agent"),
+        Binding("ctrl+up", "resize_pane_up", "Grow Top Pane"),
+        Binding("ctrl+down", "resize_pane_down", "Grow Bottom Pane"),
+        Binding("ctrl+o", "focus_overview", "Focus Overview"),
+        Binding("ctrl+a", "focus_agents", "Focus Agents"),
     ]
 
     # Reactive attributes
     dry_run = reactive(False)
     selected_agent_index = reactive(0)
+    top_pane_height = reactive(30)  # Percentage of screen height
+    MIN_PANE_HEIGHT = 15  # Minimum percentage for any pane
+    MAX_PANE_HEIGHT = 70  # Maximum percentage for any pane
 
     def __init__(
         self,
@@ -114,6 +175,7 @@ class CocodeApp(App):
         self.dry_run = dry_run
         self.update_interval = update_interval or self.DEFAULT_UPDATE_INTERVAL
         self.agent_panels: list[AgentPanel] = []
+        self.overview_panel: OverviewPanel | None = None
         self.update_task: asyncio.Task[None] | None = None
 
     def compose(self) -> ComposeResult:
@@ -128,19 +190,30 @@ class CocodeApp(App):
             )
 
         with Container(classes="content"):
-            with Horizontal(id="agent-container"):
-                # Create panels for registered agents
-                for agent_name in self.lifecycle_manager.agents:
-                    panel = AgentPanel(agent_name)
-                    self.agent_panels.append(panel)
-                    yield panel
+            # Top pane with overview
+            with VerticalScroll(id="top-pane"):
+                self.overview_panel = OverviewPanel(
+                    self.issue_number,
+                    self.issue_url,
+                    self.issue_body,
+                )
+                yield self.overview_panel
 
-                # If no agents, show placeholder
-                if not self.agent_panels:
-                    yield Static(
-                        "No agents registered. Use 'cocode init' to configure agents.",
-                        id="no-agents",
-                    )
+            # Bottom pane with agent panels
+            with VerticalScroll(id="bottom-pane"):
+                with Horizontal(id="agent-container"):
+                    # Create panels for registered agents
+                    for agent_name in self.lifecycle_manager.agents:
+                        panel = AgentPanel(agent_name)
+                        self.agent_panels.append(panel)
+                        yield panel
+
+                    # If no agents, show placeholder
+                    if not self.agent_panels:
+                        yield Static(
+                            "No agents registered. Use 'cocode init' to configure agents.",
+                            id="no-agents",
+                        )
 
         yield Footer()
 
@@ -153,10 +226,13 @@ class CocodeApp(App):
         else:
             self.title = "Cocode"
 
-        # Select and focus first agent if available
+        # Focus overview panel initially
+        if self.overview_panel:
+            self.overview_panel.focus()
+
+        # Select first agent if available (but don't focus yet)
         if self.agent_panels:
             self.agent_panels[0].set_selected(True)
-            self.agent_panels[0].focus()
 
             # Dynamically bind number keys for agent selection (up to 9 agents)
             for i, panel in enumerate(self.agent_panels[:9], 1):
@@ -187,6 +263,10 @@ class CocodeApp(App):
                             panel.add_class("failed")
                         elif info.state == AgentState.READY:
                             panel.add_class("ready")
+
+                        # Update overview panel with agent state
+                        if self.overview_panel:
+                            self.overview_panel.update_agent_state(panel.agent_name, info.state)
 
                 await asyncio.sleep(self.update_interval)
             except asyncio.CancelledError:
@@ -277,6 +357,47 @@ class CocodeApp(App):
         self.agent_panels[self.selected_agent_index].focus()
         self.agent_panels[self.selected_agent_index].scroll_visible()
 
+    def action_resize_pane_up(self) -> None:
+        """Increase the top pane size (decrease bottom pane)."""
+        new_height = self.top_pane_height + 5
+        if new_height <= self.MAX_PANE_HEIGHT:
+            self.top_pane_height = new_height
+            self._update_pane_sizes()
+
+    def action_resize_pane_down(self) -> None:
+        """Decrease the top pane size (increase bottom pane)."""
+        new_height = self.top_pane_height - 5
+        if new_height >= self.MIN_PANE_HEIGHT:
+            self.top_pane_height = new_height
+            self._update_pane_sizes()
+
+    def action_focus_overview(self) -> None:
+        """Focus the overview panel."""
+        if self.overview_panel:
+            self.overview_panel.focus()
+            # Remove selection from agents when focusing overview
+            if self.agent_panels and self.selected_agent_index < len(self.agent_panels):
+                self.agent_panels[self.selected_agent_index].remove_class("focused")
+
+    def action_focus_agents(self) -> None:
+        """Focus the agent panels."""
+        if self.agent_panels:
+            self.agent_panels[self.selected_agent_index].focus()
+            # Add focused class to indicate active pane
+            self.agent_panels[self.selected_agent_index].add_class("focused")
+
+    def _update_pane_sizes(self) -> None:
+        """Update the CSS for pane sizes based on current settings."""
+        top_pane = self.query_one("#top-pane")
+        bottom_pane = self.query_one("#bottom-pane")
+
+        # Calculate actual heights
+        bottom_height = 100 - self.top_pane_height
+
+        # Update styles
+        top_pane.styles.height = f"{self.top_pane_height}%"
+        bottom_pane.styles.height = f"{bottom_height}%"
+
     def start_all_agents(self) -> None:
         """Start all registered agents."""
         for panel in self.agent_panels:
@@ -296,8 +417,13 @@ class CocodeApp(App):
 
             if success:
                 panel.add_log_line("[blue]Agent started[/blue]")
+                # Initialize overview panel with agent state
+                if self.overview_panel:
+                    self.overview_panel.update_agent_state(agent_name, AgentState.STARTING)
             else:
                 panel.add_log_line("[red]Failed to start agent[/red]")
+                if self.overview_panel:
+                    self.overview_panel.update_agent_state(agent_name, AgentState.FAILED)
 
     async def on_shutdown(self) -> None:
         """Handle app shutdown."""
