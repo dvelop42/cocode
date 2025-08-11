@@ -5,12 +5,14 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.prompt import Confirm
 from typer import Context
 
-from cocode.agents.base import AgentStatus
+from cocode.agents.base import Agent, AgentStatus
 from cocode.agents.discovery import discover_agents
 from cocode.agents.factory import AgentFactory, AgentFactoryError
 from cocode.agents.lifecycle import AgentLifecycleManager
+from cocode.config.manager import ConfigManager
 from cocode.git.worktree import WorktreeManager
 from cocode.github.issues import IssueManager
 from cocode.tui.app import CocodeApp
@@ -21,10 +23,10 @@ console = Console()
 
 def run_command(
     issue: int = typer.Argument(..., help="GitHub issue number"),
-    agents: list[str] = typer.Option(None, "--agent", "-a", help="Agents to run"),
+    agents: list[str] | None = typer.Option(None, "--agent", "-a", help="Agents to run"),
     no_tui: bool = typer.Option(False, "--no-tui", help="Run without TUI interface"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug output"),
-    ctx: Context = typer.Context,
+    ctx: Context = None,
 ) -> None:
     """Run agents to fix a GitHub issue."""
     # Check for dry run mode
@@ -56,26 +58,158 @@ def run_command(
         # Initialize agent factory
         factory = AgentFactory()
 
-        # Discover and create agents
-        discovered_agents = discover_agents()
-        available_agents = {}
+        # Load configuration to get configured agents
+        config_path = Path(".cocode/config.json")
+        config_manager = ConfigManager(config_path)
 
-        for agent_info in discovered_agents:
-            if agent_info.installed:
-                try:
-                    # Create agent instance using the factory with dependency validation
-                    agent = factory.create_agent(agent_info.name, validate_dependencies=True)
-                    available_agents[agent_info.name] = agent
-                except AgentFactoryError as e:
+        available_agents: dict[str, Agent] = {}
+
+        # Check if configuration exists, if not prompt to run init
+        if not config_path.exists():
+            console.print("[yellow]⚠ No configuration found.[/yellow]")
+            console.print("Cocode needs to be initialized before running agents.")
+
+            # Check if any agents are installed
+            discovered = discover_agents()
+            installed = [a for a in discovered if a.installed]
+
+            if installed:
+                console.print(f"\n[green]Found {len(installed)} installed agent(s):[/green]")
+                for agent_info in installed:
+                    console.print(f"  • {agent_info.name}")
+
+                # Prompt to run init
+                console.print("\nWould you like to initialize cocode now?")
+                if Confirm.ask("Run 'cocode init'", default=True):
+                    # Import and run init command
+                    from cocode.cli.init import init_command
+
+                    console.print("\n[blue]Starting initialization...[/blue]\n")
+
+                    try:
+                        # Run init in interactive mode
+                        # Pass the context object directly, not a new Context
+                        init_command(interactive=True, force=False, ctx=ctx)
+                    except typer.Exit:
+                        # init_command raises Exit on success, continue to load config
+                        pass
+
+                    # Check if config was created
+                    if not config_path.exists():
+                        console.print("\n[red]Configuration was not created. Exiting.[/red]")
+                        raise typer.Exit(ExitCode.GENERAL_ERROR)
+
+                    console.print("\n[green]✓ Configuration created successfully![/green]")
+                    console.print(f"\n[blue]Continuing with issue #{issue}...[/blue]\n")
+                else:
                     console.print(
-                        f"[yellow]Warning: Could not initialize {agent_info.name}: {e}[/yellow]"
+                        "\n[yellow]Please run 'cocode init' to configure agents first.[/yellow]"
                     )
-                    if debug:
-                        console.print(f"[dim]{e}[/dim]")
+                    raise typer.Exit(ExitCode.GENERAL_ERROR)
+            else:
+                console.print("\n[red]No agents found on PATH.[/red]")
+                console.print("Please install one of the following agents:")
+                console.print("  • claude-code: Anthropic's Claude CLI")
+                console.print("  • codex-cli: OpenAI Codex CLI")
+                console.print("\nThen run 'cocode init' to configure agents.")
+                raise typer.Exit(ExitCode.MISSING_DEPS)
+
+        # Try to load configured agents first
+        if config_path.exists():
+            try:
+                config_manager.load()
+                configured_agents = config_manager.get("agents", [])
+
+                if configured_agents:
+                    console.print(
+                        "[blue]Loading configured agents from .cocode/config.json...[/blue]"
+                    )
+                    for agent_config in configured_agents:
+                        agent_name = agent_config.get("name")
+                        if agent_name:
+                            try:
+                                # Create agent instance with configuration from init
+                                config_override = {}
+                                if agent_config.get("command"):
+                                    config_override["command"] = agent_config["command"]
+                                if agent_config.get("args"):
+                                    config_override["args"] = agent_config["args"]
+
+                                agent = factory.create_agent(
+                                    agent_name,
+                                    config_override=config_override if config_override else None,
+                                    validate_dependencies=True,
+                                )
+                                available_agents[agent_name] = agent
+                                if debug:
+                                    console.print(f"[dim]Loaded {agent_name} from config[/dim]")
+                            except AgentFactoryError as e:
+                                console.print(
+                                    f"[yellow]Warning: Could not initialize {agent_name}: {e}[/yellow]"
+                                )
+                                if debug:
+                                    console.print(f"[dim]{e}[/dim]")
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not load configuration: {e}[/yellow]")
+                console.print("[yellow]Falling back to agent discovery...[/yellow]")
+
+        # If no configured agents loaded, offer to re-run init
+        if not available_agents:
+            console.print("[yellow]⚠ No agents could be loaded from configuration.[/yellow]")
+
+            # Check if configuration might be corrupted or outdated
+            if config_path.exists():
+                console.print("The configuration file exists but no agents were loaded.")
+                console.print("This might happen if:")
+                console.print("  • The configured agents are not installed")
+                console.print("  • The configuration file is corrupted")
+
+                if Confirm.ask("\nWould you like to reconfigure cocode?", default=True):
+                    from cocode.cli.init import init_command
+
+                    console.print("\n[blue]Starting reconfiguration...[/blue]\n")
+
+                    try:
+                        # Run init with force flag to overwrite
+                        # Pass the context object directly
+                        init_command(interactive=True, force=True, ctx=ctx)
+                    except typer.Exit:
+                        pass
+
+                    # Reload configuration
+                    console.print("\n[blue]Reloading configuration...[/blue]")
+                    config_manager = ConfigManager(config_path)
+                    config_manager.load()
+                    configured_agents = config_manager.get("agents", [])
+
+                    # Try to load agents again
+                    for agent_config in configured_agents:
+                        agent_name = agent_config.get("name")
+                        if agent_name:
+                            try:
+                                config_override = {}
+                                if agent_config.get("command"):
+                                    config_override["command"] = agent_config["command"]
+                                if agent_config.get("args"):
+                                    config_override["args"] = agent_config["args"]
+
+                                agent = factory.create_agent(
+                                    agent_name,
+                                    config_override=config_override if config_override else None,
+                                    validate_dependencies=True,
+                                )
+                                available_agents[agent_name] = agent
+                            except AgentFactoryError as e:
+                                console.print(
+                                    f"[yellow]Warning: Could not initialize {agent_name}: {e}[/yellow]"
+                                )
 
         if not available_agents:
-            console.print("[red]No agents found. Run 'cocode init' to configure agents.[/red]")
-            console.print("[yellow]Run 'cocode doctor' to check agent dependencies.[/yellow]")
+            console.print("\n[red]No agents could be initialized.[/red]")
+            console.print("Please check:")
+            console.print("  1. Agents are installed: [cyan]cocode doctor[/cyan]")
+            console.print("  2. Configuration is valid: [cyan]cocode status[/cyan]")
+            console.print("  3. Reconfigure if needed: [cyan]cocode init --force[/cyan]")
             raise typer.Exit(ExitCode.GENERAL_ERROR)
 
         # Filter agents if specified

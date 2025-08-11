@@ -36,8 +36,23 @@ class CocodeApp(App):
         padding: 1;
     }
 
+    AgentPanel:focus {
+        border: thick $accent;
+    }
+
     AgentPanel.selected {
-        border: solid $success;
+        border: thick $accent;
+        background: $boost;
+    }
+
+    AgentPanel.selected.failed {
+        border: thick $error;
+        background: $boost;
+    }
+
+    AgentPanel.selected.ready {
+        border: thick $success;
+        background: $boost;
     }
 
     AgentPanel.failed {
@@ -57,13 +72,10 @@ class CocodeApp(App):
         Binding("q", "quit", "Quit"),
         Binding("r", "restart_agent", "Restart"),
         Binding("s", "stop_agent", "Stop"),
-        Binding("left", "previous_agent", "Previous", show=False),
-        Binding("right", "next_agent", "Next", show=False),
-        Binding("1", "select_agent(0)", "Agent 1", show=False),
-        Binding("2", "select_agent(1)", "Agent 2", show=False),
-        Binding("3", "select_agent(2)", "Agent 3", show=False),
-        Binding("4", "select_agent(3)", "Agent 4", show=False),
-        Binding("5", "select_agent(4)", "Agent 5", show=False),
+        Binding("left", "previous_agent", "Previous"),
+        Binding("right", "next_agent", "Next"),
+        Binding("tab", "next_agent", "Next Agent"),
+        Binding("shift+tab", "previous_agent", "Prev Agent"),
     ]
 
     # Reactive attributes
@@ -135,9 +147,16 @@ class CocodeApp(App):
         else:
             self.title = "Cocode"
 
-        # Select first agent if available
+        # Select and focus first agent if available
         if self.agent_panels:
             self.agent_panels[0].set_selected(True)
+            self.agent_panels[0].focus()
+
+            # Dynamically bind number keys for agent selection (up to 9 agents)
+            for i, panel in enumerate(self.agent_panels[:9], 1):
+                self.bind(
+                    str(i), f"select_agent({i-1})", description=f"Agent {i}: {panel.agent_name}"
+                )
 
         # Start update loop only if we have an event loop (not in tests)
         try:
@@ -232,6 +251,9 @@ class CocodeApp(App):
         self.agent_panels[self.selected_agent_index].set_selected(False)
         self.selected_agent_index = (self.selected_agent_index + 1) % len(self.agent_panels)
         self.agent_panels[self.selected_agent_index].set_selected(True)
+        # Ensure the selected panel is visible and focused
+        self.agent_panels[self.selected_agent_index].focus()
+        self.agent_panels[self.selected_agent_index].scroll_visible()
 
     def action_previous_agent(self) -> None:
         """Select the previous agent."""
@@ -241,6 +263,9 @@ class CocodeApp(App):
         self.agent_panels[self.selected_agent_index].set_selected(False)
         self.selected_agent_index = (self.selected_agent_index - 1) % len(self.agent_panels)
         self.agent_panels[self.selected_agent_index].set_selected(True)
+        # Ensure the selected panel is visible and focused
+        self.agent_panels[self.selected_agent_index].focus()
+        self.agent_panels[self.selected_agent_index].scroll_visible()
 
     def action_select_agent(self, index: int) -> None:
         """Select an agent by index.
@@ -254,6 +279,9 @@ class CocodeApp(App):
         self.agent_panels[self.selected_agent_index].set_selected(False)
         self.selected_agent_index = index
         self.agent_panels[self.selected_agent_index].set_selected(True)
+        # Ensure the selected panel is visible and focused
+        self.agent_panels[self.selected_agent_index].focus()
+        self.agent_panels[self.selected_agent_index].scroll_visible()
 
     def start_all_agents(self) -> None:
         """Start all registered agents."""

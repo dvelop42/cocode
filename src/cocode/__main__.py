@@ -11,6 +11,7 @@ from cocode.cli.clean import clean_command
 from cocode.cli.doctor import doctor_command
 from cocode.cli.init import init_command
 from cocode.cli.run import run_command
+from cocode.cli.status import status_command
 from cocode.utils.logging import setup_logging
 
 app = typer.Typer(
@@ -24,6 +25,7 @@ console = Console()
 # Register commands
 app.command("init")(init_command)
 app.command("run")(run_command)
+app.command("status")(status_command)
 app.command("doctor")(doctor_command)
 app.command("clean")(clean_command)
 
