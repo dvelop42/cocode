@@ -12,6 +12,8 @@ from textual.widgets import Footer, Header, Static
 from cocode.agents.base import AgentStatus
 from cocode.agents.lifecycle import AgentLifecycleManager, AgentState
 from cocode.tui.agent_panel import AgentPanel
+from cocode.tui.confirm_quit import ConfirmQuitScreen
+from cocode.tui.help_overlay import HelpScreen
 from cocode.tui.overview_panel import OverviewPanel
 
 
@@ -126,7 +128,8 @@ class CocodeApp(App):
     """
 
     BINDINGS = [
-        Binding("q", "quit", "Quit"),
+        Binding("q", "request_quit", "Quit"),
+        Binding("ctrl+c", "quit", "Quit Now"),
         Binding("r", "restart_agent", "Restart"),
         Binding("s", "stop_agent", "Stop"),
         Binding("left", "previous_agent", "Previous"),
@@ -137,6 +140,15 @@ class CocodeApp(App):
         Binding("ctrl+down", "resize_pane_down", "Grow Bottom Pane"),
         Binding("ctrl+o", "focus_overview", "Focus Overview"),
         Binding("ctrl+a", "focus_agents", "Focus Agents"),
+        # Vim-like bindings
+        Binding("h", "previous_agent", "Prev (vim)"),
+        Binding("l", "next_agent", "Next (vim)"),
+        Binding("j", "focus_agents", "Focus Agents (vim)"),
+        Binding("k", "focus_overview", "Focus Overview (vim)"),
+        Binding("g", "first_agent", "First Agent (vim)"),
+        Binding("G", "last_agent", "Last Agent (vim)"),
+        # Help overlay
+        Binding("?", "show_help", "Help"),
     ]
 
     # Reactive attributes
@@ -396,6 +408,29 @@ class CocodeApp(App):
             self.agent_panels[self.selected_agent_index].focus()
             # Add focused class to indicate active pane
             self.agent_panels[self.selected_agent_index].add_class("focused")
+
+    def action_first_agent(self) -> None:
+        """Select the first agent (vim 'g')."""
+        if not self.agent_panels:
+            return
+        self.action_select_agent(0)
+
+    def action_last_agent(self) -> None:
+        """Select the last agent (vim 'G')."""
+        if not self.agent_panels:
+            return
+        self.action_select_agent(len(self.agent_panels) - 1)
+
+    def action_show_help(self) -> None:
+        """Show the help overlay with keyboard shortcuts."""
+        self.push_screen(HelpScreen())
+
+    async def action_request_quit(self) -> None:
+        """Ask for confirmation before quitting."""
+        result = await self.push_screen_wait(ConfirmQuitScreen())
+        if result:
+            await self.shutdown()  # ensure cleanup via on_shutdown
+            self.exit()
 
     def _update_pane_sizes(self) -> None:
         """Update the CSS for pane sizes based on current settings."""
