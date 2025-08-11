@@ -1,6 +1,7 @@
 """Claude Code agent implementation."""
 
 import logging
+import os
 import shutil
 from pathlib import Path
 
@@ -110,18 +111,23 @@ class ClaudeCodeAgent(GitBasedAgent):
         if self.config.args:
             command.extend(self.config.args)
         else:
-            # Default Claude Code arguments
+            # Default Claude CLI arguments for non-interactive mode
             command.extend(
                 [
-                    "code",  # Subcommand for code operations
-                    "--non-interactive",  # Don't prompt for user input
+                    "--print",  # Non-interactive mode - print response and exit
                 ]
             )
 
-        # Claude CLI will read issue context from environment variables:
-        # - COCODE_ISSUE_NUMBER
-        # - COCODE_ISSUE_BODY_FILE
-        # - COCODE_READY_MARKER
+        # Claude CLI needs a prompt to work with
+        # We'll construct a prompt that instructs it to read the issue from the file
+        # The actual issue content will be in COCODE_ISSUE_BODY_FILE
+        prompt = (
+            f"Please fix GitHub issue #{os.environ.get('COCODE_ISSUE_NUMBER', 'unknown')}. "
+            f"The issue details are in the file: {os.environ.get('COCODE_ISSUE_BODY_FILE', '')}. "
+            f"After fixing the issue, commit your changes with the message containing: "
+            f"'{os.environ.get('COCODE_READY_MARKER', 'cocode ready for check')}'"
+        )
+        command.append(prompt)
 
         logger.debug(f"Claude Code command: {' '.join(command)}")
         return command

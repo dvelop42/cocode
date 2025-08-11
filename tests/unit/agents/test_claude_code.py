@@ -88,11 +88,10 @@ class TestClaudeCodeAgent:
         with patch.dict(os.environ, {}, clear=True):
             command = agent.get_command()
 
-        assert command == [
-            "/usr/local/bin/claude",
-            "code",
-            "--non-interactive",
-        ]
+        # Command now uses --print and includes a prompt
+        assert command[0] == "/usr/local/bin/claude"
+        assert command[1] == "--print"
+        assert "Please fix GitHub issue" in command[-1]
 
     @patch("shutil.which")
     def test_get_command_fallback(self, mock_which, agent):
@@ -104,6 +103,8 @@ class TestClaudeCodeAgent:
 
         assert agent._command_path == "/usr/bin/claude"
         assert command[0] == "/usr/bin/claude"
+        assert command[1] == "--print"
+        assert "Please fix GitHub issue" in command[-1]
 
     @patch("shutil.which")
     def test_get_command_no_cli_raises_error(self, mock_which, agent):
@@ -120,13 +121,10 @@ class TestClaudeCodeAgent:
         with patch.dict(os.environ, {"COCODE_ISSUE_NUMBER": "123"}):
             command = agent.get_command()
 
-        # Command should be the same regardless of environment variables
-        # Claude CLI reads them directly
-        assert command == [
-            "/usr/local/bin/claude",
-            "code",
-            "--non-interactive",
-        ]
+        # Command now includes the issue number in the prompt
+        assert command[0] == "/usr/local/bin/claude"
+        assert command[1] == "--print"
+        assert "Please fix GitHub issue #123" in command[-1]
 
     def test_get_command_with_ready_marker(self, agent):
         """Test command generation with ready marker in environment."""
@@ -135,13 +133,10 @@ class TestClaudeCodeAgent:
         with patch.dict(os.environ, {"COCODE_READY_MARKER": "ready for review"}):
             command = agent.get_command()
 
-        # Command should be the same regardless of environment variables
-        # Claude CLI reads them directly
-        assert command == [
-            "/usr/local/bin/claude",
-            "code",
-            "--non-interactive",
-        ]
+        # Command now includes the ready marker in the prompt
+        assert command[0] == "/usr/local/bin/claude"
+        assert command[1] == "--print"
+        assert "ready for review" in command[-1]
 
     def test_get_command_full(self, agent):
         """Test command generation with all environment variables."""
@@ -156,12 +151,12 @@ class TestClaudeCodeAgent:
         with patch.dict(os.environ, test_env):
             command = agent.get_command()
 
-        # Command remains simple - Claude CLI reads environment directly
-        assert command == [
-            "/usr/local/bin/claude",
-            "code",
-            "--non-interactive",
-        ]
+        # Command now includes all the environment info in the prompt
+        assert command[0] == "/usr/local/bin/claude"
+        assert command[1] == "--print"
+        assert "Please fix GitHub issue #456" in command[-1]
+        assert "/tmp/issue.txt" in command[-1]
+        assert "cocode ready for check" in command[-1]
 
     def test_handle_error_known_exit_codes(self, agent):
         """Test error handling for known exit codes."""

@@ -88,6 +88,7 @@ class AgentPanel(Static):
         """
         log_widget = self.query_one(f"#log-{self.agent_name}", Log)
         timestamp = datetime.now().strftime("%H:%M:%S")
+        # Log widget can handle Rich markup in strings directly
         log_widget.write_line(f"[dim]{timestamp}[/dim] {line}")
 
     def clear_logs(self) -> None:

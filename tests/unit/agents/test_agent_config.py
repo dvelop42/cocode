@@ -107,7 +107,9 @@ class TestClaudeCodeAgentConfig:
         agent.validate_environment()
 
         command = agent.get_command()
-        assert command == ["/usr/local/bin/claude", "custom", "command", "--no-cache"]
+        # Command now includes custom args plus the prompt
+        assert command[:4] == ["/usr/local/bin/claude", "custom", "command", "--no-cache"]
+        assert "Please fix GitHub issue" in command[-1]
 
     def test_claude_code_prepare_environment_with_config(self):
         """Test ClaudeCodeAgent passes through custom environment variables."""
