@@ -44,6 +44,12 @@ class ConfirmQuitScreen(ModalScreen[bool]):
     def on_key(self, event: Key) -> None:
         key = event.key.lower()
         if key in {"escape", "n"}:
-            self.dismiss(False)
+            try:
+                self.dismiss(False)
+            except Exception:
+                pass
         elif key in {"enter", "y"}:
-            self.dismiss(True)
+            try:
+                self.dismiss(True)
+            except Exception:
+                pass

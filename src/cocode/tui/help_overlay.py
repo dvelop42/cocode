@@ -63,7 +63,27 @@ class HelpScreen(ModalScreen[None]):
 
     def __init__(self, extra_bindings: Iterable[tuple[str, str]] | None = None) -> None:
         super().__init__()
-        self._extra_bindings = list(extra_bindings or [])
+        self._extra_bindings = self._sanitize_bindings(extra_bindings or [])
+
+    @staticmethod
+    def _sanitize_bindings(bindings: Iterable[tuple[str, str]]) -> list[tuple[str, str]]:
+        """Validate and normalize extra binding entries.
+
+        - Ensure each entry is a (str, str) tuple
+        - Strip newlines and trim to reasonable lengths
+        - Ignore malformed entries
+        """
+        sanitized: list[tuple[str, str]] = []
+        for item in bindings:
+            if not isinstance(item, tuple) or len(item) != 2:
+                continue
+            key, desc = item
+            if not isinstance(key, str) or not isinstance(desc, str):
+                continue
+            key = key.replace("\n", " ").strip()[:40]
+            desc = desc.replace("\n", " ").strip()[:80]
+            sanitized.append((key, desc))
+        return sanitized
 
     def compose(self) -> ComposeResult:
         all_bindings = self.BIND_KEYS + self._extra_bindings
@@ -79,7 +99,10 @@ class HelpScreen(ModalScreen[None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close":
-            self.dismiss(None)
+            try:
+                self.dismiss(None)
+            except Exception:
+                pass
 
     def on_key(self, event: Key) -> None:
         # Close on Esc or ?

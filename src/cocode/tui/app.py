@@ -125,6 +125,14 @@ class CocodeApp(App):
         dock: bottom;
         height: 1;
     }
+
+    .key-hint {
+        dock: bottom;
+        height: 1;
+        background: $panel;
+        color: $primary-lighten-3;
+        padding: 0 1;
+    }
     """
 
     BINDINGS = [
@@ -221,6 +229,7 @@ class CocodeApp(App):
                         )
 
         yield Footer()
+        yield Static("Press ? for help — q to quit", classes="key-hint", id="key-hint")
 
     def on_mount(self) -> None:
         """Called when app is mounted."""
