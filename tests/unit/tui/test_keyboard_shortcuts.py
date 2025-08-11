@@ -120,38 +120,7 @@ def test_number_key_selection(app_with_agents):
     assert app_with_agents.selected_agent_index == 2  # Unchanged
 
 
-def test_ctrl_up_down_resize(app_with_agents):
-    """Test Ctrl+Up/Down resizes panes."""
-    initial_height = app_with_agents.top_pane_height
-
-    # Test resize up action (without calling action methods that need mounted widgets)
-    new_height = initial_height + 5
-    if new_height <= app_with_agents.MAX_PANE_HEIGHT:
-        app_with_agents.top_pane_height = new_height
-        assert app_with_agents.top_pane_height == min(
-            initial_height + 5, app_with_agents.MAX_PANE_HEIGHT
-        )
-
-    # Test resize down action
-    app_with_agents.top_pane_height = initial_height
-    new_height = initial_height - 5
-    if new_height >= app_with_agents.MIN_PANE_HEIGHT:
-        app_with_agents.top_pane_height = new_height
-        assert app_with_agents.top_pane_height == initial_height - 5
-
-    # Test hitting minimum
-    app_with_agents.top_pane_height = app_with_agents.MIN_PANE_HEIGHT - 10
-    app_with_agents.top_pane_height = max(
-        app_with_agents.top_pane_height, app_with_agents.MIN_PANE_HEIGHT
-    )
-    assert app_with_agents.top_pane_height == app_with_agents.MIN_PANE_HEIGHT
-
-    # Test hitting maximum
-    app_with_agents.top_pane_height = app_with_agents.MAX_PANE_HEIGHT + 10
-    app_with_agents.top_pane_height = min(
-        app_with_agents.top_pane_height, app_with_agents.MAX_PANE_HEIGHT
-    )
-    assert app_with_agents.top_pane_height == app_with_agents.MAX_PANE_HEIGHT
+# Pane resize removed; scrolling handled by widgets
 
 
 def test_ctrl_o_focus_overview(app_with_agents):
@@ -243,9 +212,7 @@ def test_keyboard_bindings_registration():
     assert hasattr(app, "action_previous_agent")
     assert hasattr(app, "action_select_agent")
 
-    # Pane resize actions
-    assert hasattr(app, "action_resize_pane_up")
-    assert hasattr(app, "action_resize_pane_down")
+    # Pane resize actions removed
 
     # Focus actions
     assert hasattr(app, "action_focus_overview")

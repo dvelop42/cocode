@@ -55,8 +55,6 @@ class HelpScreen(ModalScreen[None]):
         ("Left / Right", "Select previous/next agent"),
         ("1..9", "Select agent by number"),
         ("Up / Down", "Focus overview / agents"),
-        ("Shift+Up / Shift+Down", "Scroll highlighted pane"),
-        ("Ctrl+Up / Ctrl+Down", "Resize panes"),
         ("r / s", "Restart / Stop selected agent"),
         ("?", "Show this help"),
         ("q", "Quit (asks for confirmation)"),
