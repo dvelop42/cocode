@@ -468,24 +468,43 @@ class TestConcurrentAgentExecutor:
         agents = [MockAgent(f"agent{i}") for i in range(5)]
 
         with patch.object(executor.lifecycle_manager, "start_agent") as mock_start:
-            # Setup to track concurrent starts and complete via callback
-            start_times = []
+            # Track concurrent executions
+            currently_running = []
+            max_concurrent_seen = 0
+            lock = threading.Lock()
 
             def track_start(*args, **kwargs):
-                start_times.append(time.time())
-                cb = kwargs.get("completion_callback")
-                # First arg is agent_name by current API
                 agent_name = args[0] if args else kwargs.get("agent_name", "test")
-                if cb:
-                    cb(
-                        AgentStatus(
-                            name=agent_name,
-                            branch=f"cocode/123-{agent_name}",
-                            worktree=Path("/tmp/worktree"),
-                            ready=False,
-                            exit_code=0,
+
+                with lock:
+                    currently_running.append(agent_name)
+                    nonlocal max_concurrent_seen
+                    max_concurrent_seen = max(max_concurrent_seen, len(currently_running))
+
+                # Simulate agent work with a delay, then complete
+                def complete_after_delay():
+                    time.sleep(0.01)  # Simulate some work
+                    with lock:
+                        if agent_name in currently_running:
+                            currently_running.remove(agent_name)
+                    cb = kwargs.get("completion_callback")
+                    if cb:
+                        cb(
+                            AgentStatus(
+                                name=agent_name,
+                                branch=f"cocode/123-{agent_name}",
+                                worktree=Path("/tmp/worktree"),
+                                ready=False,
+                                exit_code=0,
+                            )
                         )
-                    )
+
+                # Start completion in background thread to simulate async work
+                import threading
+
+                thread = threading.Thread(target=complete_after_delay)
+                thread.daemon = True
+                thread.start()
                 return True
 
             mock_start.side_effect = track_start
@@ -520,6 +539,10 @@ class TestConcurrentAgentExecutor:
                     assert mock_start.call_count == 5
                     # Verify we got results for all agents
                     assert len(result.agent_results) == 5
+                    # Verify concurrency limit was respected (max 3 concurrent)
+                    assert (
+                        max_concurrent_seen <= 3
+                    ), f"Expected max 3 concurrent agents, but saw {max_concurrent_seen}"
 
 
 class TestExecutionResult:

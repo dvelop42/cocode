@@ -30,7 +30,7 @@ def test_validate_issue_number():
         ("feature/new-thing", "feature/new-thing"),
         (" Feature: New Thing! ", "Feature-New-Thing"),
         ("...strange..name...", "strange-name"),
-        ("--bad__chars??--", "bad__chars-".strip("-/")),
+        ("--bad__chars??--", "bad__chars"),
         ("", "branch"),
     ],
 )

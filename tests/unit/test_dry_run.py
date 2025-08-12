@@ -10,17 +10,6 @@ from cocode.tui.app import CocodeApp
 from cocode.utils.dry_run import DryRunFormatter, get_dry_run_context
 
 
-class TestDryRunCLI:
-    """Test dry run functionality in CLI commands."""
-
-    @pytest.mark.skip("CLI testing needs to be updated to work with full app context")
-    def test_cli_integration_placeholder(self):
-        """Placeholder for CLI integration tests."""
-        # These tests need to be rewritten to test through the main CLI app
-        # rather than individual command functions
-        pass
-
-
 class TestWorktreeManagerDryRun:
     """Test WorktreeManager dry run functionality."""
 
@@ -272,7 +261,7 @@ class TestEnvironmentVariableHandling:
             assert ctx.obj["dry_run"] is False, f"Failed for value: {false_value}"
 
     def test_dry_run_env_var_true_values(self, monkeypatch):
-        """Test that true-like values enable dry run mode."""
+        """Test that true-like env values don't override CLI flag when it's already True."""
         from unittest.mock import Mock
 
         import cocode.__main__ as main_mod
@@ -286,10 +275,10 @@ class TestEnvironmentVariableHandling:
             ctx.ensure_object.return_value = None
             ctx.obj = {}
 
-            # Call with dry_run=False from Typer, but env var should be True
+            # Call with dry_run=True from CLI - env var should not change it
             main_mod._global_options(ctx, version=False, log_level="INFO", dry_run=True)
 
-            # Should remain true (not overridden by false values)
+            # Should remain true (env var doesn't override CLI when both are truthy)
             assert ctx.obj["dry_run"] is True, f"Failed for value: {true_value}"
 
     def test_dry_run_no_env_var(self, monkeypatch):

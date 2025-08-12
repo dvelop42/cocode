@@ -632,7 +632,9 @@ class ConcurrentAgentExecutor:
             agents: List of agents whose worktrees should be cleaned
         """
         for agent in agents:
-            worktree_path = self.repo_path.parent / f"cocode_{agent.name}"
+            # Use the same sanitization logic as WorktreeManager
+            safe_agent_name = self.worktree_manager._validate_agent_name(agent.name)
+            worktree_path = self.repo_path.parent / f"cocode_{safe_agent_name}"
             try:
                 self.worktree_manager.remove_worktree(worktree_path)
                 logger.info(f"Removed worktree for {agent.name}")
