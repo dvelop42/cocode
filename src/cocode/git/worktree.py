@@ -261,8 +261,11 @@ class WorktreeManager:
                 logger.warning(f"Path exists but is not a git worktree: {worktree_path}")
                 # Check if it's a directory we can clean up
                 if worktree_path.name.startswith(self.COCODE_PREFIX):
-                    logger.info(f"Removing cocode directory: {worktree_path}")
-                    shutil.rmtree(worktree_path, ignore_errors=True)
+                    if self.dry_run:
+                        logger.info(f"[DRY RUN] Would remove cocode directory: {worktree_path}")
+                    else:
+                        logger.info(f"Removing cocode directory: {worktree_path}")
+                        shutil.rmtree(worktree_path, ignore_errors=True)
                     return
             else:
                 logger.info(f"Worktree path does not exist: {worktree_path}")

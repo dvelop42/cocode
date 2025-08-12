@@ -185,6 +185,9 @@ class TestConcurrentExecutorSimple:
         mock_worktree_class.return_value = mock_worktree
         mock_lifecycle_class.return_value = mock_lifecycle
 
+        # Mock the _validate_agent_name method to return sanitized names
+        mock_worktree._validate_agent_name.side_effect = lambda name: name
+
         executor = ConcurrentAgentExecutor(
             repo_path=Path("/tmp/repo"),
             max_concurrent_agents=2,
